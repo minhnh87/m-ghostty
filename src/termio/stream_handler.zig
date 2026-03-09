@@ -1072,7 +1072,40 @@ pub const StreamHandler = struct {
     ) !void {
         switch (cmd.action) {
             .end_input_start_output => {
-                self.surfaceMessageWriter(.start_command);
+                // Try to decode the command line text from the OSC 133;C options.
+                // First try writing into a small buffer to avoid allocation.
+                var small_buf: apprt.surface.Message.WriteReq.Small.Array = undefined;
+                var writer: std.Io.Writer = .fixed(&small_buf);
+                if (cmd.writeCommandLine(&writer)) {
+                    const written = writer.buffered();
+                    if (written.len > 0) {
+                        self.surfaceMessageWriter(.{ .start_command = .{ .small = .{
+                            .data = small_buf,
+                            .len = @intCast(written.len),
+                        } } });
+                    } else {
+                        self.surfaceMessageWriter(.{ .start_command = .{ .stable = "" } });
+                    }
+                } else |_| {
+                    // Small buffer wasn't enough, use allocating writer.
+                    var alloc_writer: std.Io.Writer.Allocating = .init(self.alloc);
+                    if (cmd.writeCommandLine(&alloc_writer.writer)) {
+                        const written = alloc_writer.writer.buffered();
+                        if (written.len > 0) {
+                            if (apprt.surface.Message.WriteReq.init(self.alloc, written)) |req| {
+                                self.surfaceMessageWriter(.{ .start_command = req });
+                            } else |_| {
+                                self.surfaceMessageWriter(.{ .start_command = .{ .stable = "" } });
+                            }
+                        } else {
+                            self.surfaceMessageWriter(.{ .start_command = .{ .stable = "" } });
+                        }
+                        alloc_writer.deinit();
+                    } else |_| {
+                        alloc_writer.deinit();
+                        self.surfaceMessageWriter(.{ .start_command = .{ .stable = "" } });
+                    }
+                }
             },
 
             .end_command => {

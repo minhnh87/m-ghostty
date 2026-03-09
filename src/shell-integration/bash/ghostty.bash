@@ -254,7 +254,20 @@ function __ghostty_preexec() {
   fi
 
   # End of input, start of output.
-  builtin printf "\e]133;C;\a"
+  # URL-encode the command text for cmdline_url (encode %, ;, and newlines).
+  builtin local encoded_cmd=""
+  builtin local i ch
+  for (( i=0; i<${#cmd}; i++ )); do
+    ch="${cmd:$i:1}"
+    case "$ch" in
+      '%') encoded_cmd+="%25" ;;
+      ';') encoded_cmd+="%3B" ;;
+      $'\n') encoded_cmd+="%0A" ;;
+      $'\r') encoded_cmd+="%0D" ;;
+      *) encoded_cmd+="$ch" ;;
+    esac
+  done
+  builtin printf "\e]133;C;cmdline_url=%s\a" "$encoded_cmd"
   _ghostty_executing=1
 }
 

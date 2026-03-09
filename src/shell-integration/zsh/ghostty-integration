@@ -199,7 +199,19 @@ _ghostty_deferred_init() {
         # its preexec hook before us, we'll incorrectly mark its output as
         # belonging to the command (as if the user typed it into zle) rather
         # than command output.
-        builtin print -nu $_ghostty_fd '\e]133;C\a'
+        builtin local encoded_cmd=""
+        builtin local i ch cmd_text="$1"
+        for (( i=0; i<${#cmd_text}; i++ )); do
+            ch="${cmd_text:$i:1}"
+            case "$ch" in
+                '%') encoded_cmd+="%25" ;;
+                ';') encoded_cmd+="%3B" ;;
+                $'\n') encoded_cmd+="%0A" ;;
+                $'\r') encoded_cmd+="%0D" ;;
+                *) encoded_cmd+="$ch" ;;
+            esac
+        done
+        builtin print -nu $_ghostty_fd '\e]133;C;cmdline_url='"$encoded_cmd"'\a'
         (( _ghostty_state = 1 ))
     }
 

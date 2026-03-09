@@ -447,6 +447,10 @@ extension Ghostty.Notification {
     /// Notifications related to key tables
     static let didChangeKeyTable = Notification.Name("com.mitchellh.ghostty.didChangeKeyTable")
     static let KeyTableKey = didChangeKeyTable.rawValue + ".action"
+
+    /// Notification posted when a command starts in the terminal
+    static let ghosttyCommandStarted = Notification.Name("com.mitchellh.ghostty.commandStarted")
+    static let CommandLineKey = ghosttyCommandStarted.rawValue + ".cmdline"
 }
 
 // Make the input enum hashable.

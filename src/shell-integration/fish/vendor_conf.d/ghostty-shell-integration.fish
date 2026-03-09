@@ -215,7 +215,9 @@ function __ghostty_setup --on-event fish_prompt -d "Setup ghostty integration"
 
     function __ghostty_mark_output_start --on-event fish_preexec
         set --global __ghostty_prompt_state pre-exec
-        echo -en "\e]133;C\a"
+        # URL-encode the command text for cmdline_url (encode %, ;, and newlines)
+        set -l encoded_cmd (string replace -a '%' '%25' -- "$argv" | string replace -a ';' '%3B' | string replace -a \n '%0A' | string replace -a \r '%0D')
+        echo -en "\e]133;C;cmdline_url=$encoded_cmd\a"
     end
 
     function __ghostty_mark_output_end --on-event fish_postexec

@@ -963,7 +963,9 @@ class AppDelegate: NSObject,
         // clean it up here to trigger a correct update of the current config.
         UserDefaults.standard.removeObject(forKey: "CustomGhosttyIcon")
         DispatchQueue.global().async {
-            UserDefaults.standard.appIcon = AppIcon(config: config)
+            // Use the custom green "M" icon by default when no icon is configured.
+            let icon = AppIcon(config: config) ?? .mGreen
+            UserDefaults.standard.appIcon = icon
             DistributedNotificationCenter.default()
                 .postNotificationName(.ghosttyIconDidChange, object: nil, userInfo: nil, deliverImmediately: true)
         }

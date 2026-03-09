@@ -1039,7 +1039,32 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
         // Initialize our content view to the SwiftUI root
         window.contentView = TerminalViewContainer {
-            TerminalView(ghostty: ghostty, viewModel: self, delegate: self)
+            TerminalView(
+                ghostty: ghostty,
+                viewModel: self,
+                delegate: self,
+                folderSidebarStore: self.folderSidebarStore,
+                onFolderClick: { [weak self] path in
+                    // Send cd command to focused surface
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
+                    surface.sendText("cd \"\(escaped)\"\n")
+                },
+                onFolderCmdClick: { [weak self] path in
+                    guard let self, let window = self.window else { return }
+                    var config = Ghostty.SurfaceConfiguration()
+                    config.workingDirectory = path
+                    _ = TerminalController.newTab(self.ghostty, from: window, withBaseConfig: config)
+                },
+                commandHistoryStore: self.commandHistoryStore,
+                onCommandClick: { [weak self] command in
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    surface.sendText(command)
+                },
+                onCommandRemove: { [weak self] command in
+                    self?.commandHistoryStore.removeCommand(command)
+                }
+            )
         }
 
         // If we have a default size, we want to apply it.

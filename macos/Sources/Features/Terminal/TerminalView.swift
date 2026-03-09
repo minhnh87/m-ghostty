@@ -47,8 +47,24 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     // An optional delegate to receive information about terminal changes.
     weak var delegate: (any TerminalViewDelegate)?
 
+    // Folder sidebar
+    @ObservedObject var folderSidebarStore: FolderSidebarStore
+    var onFolderClick: (String) -> Void
+    var onFolderCmdClick: (String) -> Void
+
+    // Command history sidebar
+    @ObservedObject var commandHistoryStore: CommandHistoryStore
+    var onCommandClick: (String) -> Void
+    var onCommandRemove: (String) -> Void
+
     /// The most recently focused surface, equal to `focusedSurface` when it is non-nil.
     @State private var lastFocusedSurface: Weak<Ghostty.SurfaceView>?
+
+    /// Whether the folder sidebar is visible.
+    @State private var folderSidebarVisible: Bool = false
+
+    /// Whether the command history sidebar is visible.
+    @State private var commandHistoryVisible: Bool = false
 
     // This seems like a crutch after switching from SwiftUI to AppKit lifecycle.
     @FocusState private var focused: Bool
@@ -71,58 +87,97 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         case .error:
             ErrorView()
         case .ready:
-            ZStack {
-                VStack(spacing: 0) {
-                    // If we're running in debug mode we show a warning so that users
-                    // know that performance will be degraded.
-                    if Ghostty.info.mode == GHOSTTY_BUILD_MODE_DEBUG || Ghostty.info.mode == GHOSTTY_BUILD_MODE_RELEASE_SAFE {
-                        DebugBuildWarningView()
-                    }
+            GeometryReader { geometry in
+            HStack(spacing: 0) {
+                // Folder left sidebar
+                if folderSidebarVisible {
+                    FolderSidebarView(
+                        store: folderSidebarStore,
+                        onFolderClick: onFolderClick,
+                        onFolderCmdClick: onFolderCmdClick
+                    )
+                    .transition(.move(edge: .leading))
 
-                    TerminalSplitTreeView(
-                        tree: viewModel.surfaceTree,
-                        action: { delegate?.performSplitAction($0) })
-                        .environmentObject(ghostty)
-                        .ghosttyLastFocusedSurface(lastFocusedSurface)
-                        .focused($focused)
-                        .onAppear { self.focused = true }
-                        .onChange(of: focusedSurface) { newValue in
-                            // We want to keep track of our last focused surface so even if
-                            // we lose focus we keep this set to the last non-nil value.
-                            if newValue != nil {
-                                lastFocusedSurface = .init(newValue)
-                                self.delegate?.focusedSurfaceDidChange(to: newValue)
+                    Divider()
+                }
+
+                ZStack {
+                    VStack(spacing: 0) {
+                        // If we're running in debug mode we show a warning so that users
+                        // know that performance will be degraded.
+                        if Ghostty.info.mode == GHOSTTY_BUILD_MODE_DEBUG || Ghostty.info.mode == GHOSTTY_BUILD_MODE_RELEASE_SAFE {
+                            DebugBuildWarningView()
+                        }
+
+                        TerminalSplitTreeView(
+                            tree: viewModel.surfaceTree,
+                            action: { delegate?.performSplitAction($0) })
+                            .environmentObject(ghostty)
+                            .ghosttyLastFocusedSurface(lastFocusedSurface)
+                            .focused($focused)
+                            .onAppear { self.focused = true }
+                            .onChange(of: focusedSurface) { newValue in
+                                // We want to keep track of our last focused surface so even if
+                                // we lose focus we keep this set to the last non-nil value.
+                                if newValue != nil {
+                                    lastFocusedSurface = .init(newValue)
+                                    self.delegate?.focusedSurfaceDidChange(to: newValue)
+                                }
                             }
-                        }
-                        .onChange(of: pwdURL) { newValue in
-                            self.delegate?.pwdDidChange(to: newValue)
-                        }
-                        .onChange(of: cellSize) { newValue in
-                            guard let size = newValue else { return }
-                            self.delegate?.cellSizeDidChange(to: size)
-                        }
-                        .frame(idealWidth: lastFocusedSurface?.value?.initialSize?.width,
-                               idealHeight: lastFocusedSurface?.value?.initialSize?.height)
-                }
-                // Ignore safe area to extend up in to the titlebar region if we have the "hidden" titlebar style
-                .ignoresSafeArea(.container, edges: ghostty.config.macosTitlebarStyle == "hidden" ? .top : [])
+                            .onChange(of: pwdURL) { newValue in
+                                self.delegate?.pwdDidChange(to: newValue)
+                            }
+                            .onChange(of: cellSize) { newValue in
+                                guard let size = newValue else { return }
+                                self.delegate?.cellSizeDidChange(to: size)
+                            }
+                            .frame(idealWidth: lastFocusedSurface?.value?.initialSize?.width,
+                                   idealHeight: lastFocusedSurface?.value?.initialSize?.height)
+                    }
+                    // Ignore safe area to extend up in to the titlebar region if we have the "hidden" titlebar style
+                    .ignoresSafeArea(.container, edges: ghostty.config.macosTitlebarStyle == "hidden" ? .top : [])
 
-                if let surfaceView = lastFocusedSurface?.value {
-                    TerminalCommandPaletteView(
-                        surfaceView: surfaceView,
-                        isPresented: $viewModel.commandPaletteIsShowing,
-                        ghosttyConfig: ghostty.config,
-                        updateViewModel: (NSApp.delegate as? AppDelegate)?.updateViewModel) { action in
-                        self.delegate?.performAction(action, on: surfaceView)
+                    if let surfaceView = lastFocusedSurface?.value {
+                        TerminalCommandPaletteView(
+                            surfaceView: surfaceView,
+                            isPresented: $viewModel.commandPaletteIsShowing,
+                            ghosttyConfig: ghostty.config,
+                            updateViewModel: (NSApp.delegate as? AppDelegate)?.updateViewModel) { action in
+                            self.delegate?.performAction(action, on: surfaceView)
+                        }
+                    }
+
+                    // Show update information above all else.
+                    if viewModel.updateOverlayIsVisible {
+                        UpdateOverlay()
                     }
                 }
+                .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
 
-                // Show update information above all else.
-                if viewModel.updateOverlayIsVisible {
-                    UpdateOverlay()
+                // Command history right sidebar
+                if commandHistoryVisible {
+                    Divider()
+
+                    CommandHistorySidebarView(
+                        store: commandHistoryStore,
+                        onCommandClick: onCommandClick,
+                        onCommandRemove: onCommandRemove
+                    )
+                    .frame(width: geometry.size.width / 3)
+                    .transition(.move(edge: .trailing))
                 }
             }
-            .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
+            .animation(.easeInOut(duration: 0.2), value: folderSidebarVisible)
+            .animation(.easeInOut(duration: 0.2), value: commandHistoryVisible)
+            .background {
+                Button("") { folderSidebarVisible.toggle() }
+                    .keyboardShortcut("l", modifiers: .command)
+                    .hidden()
+                Button("") { commandHistoryVisible.toggle() }
+                    .keyboardShortcut("e", modifiers: .command)
+                    .hidden()
+            }
+            } // GeometryReader
         }
     }
 }

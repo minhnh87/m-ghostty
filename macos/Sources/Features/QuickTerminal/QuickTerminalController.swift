@@ -138,7 +138,31 @@ class QuickTerminalController: BaseTerminalController {
 
         // Setup our content
         window.contentView = TerminalViewContainer {
-            TerminalView(ghostty: ghostty, viewModel: self, delegate: self)
+            TerminalView(
+                ghostty: ghostty,
+                viewModel: self,
+                delegate: self,
+                folderSidebarStore: self.folderSidebarStore,
+                onFolderClick: { [weak self] path in
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
+                    surface.sendText("cd \"\(escaped)\"\n")
+                },
+                onFolderCmdClick: { [weak self] path in
+                    // Quick terminal doesn't support tabs, fallback to cd
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
+                    surface.sendText("cd \"\(escaped)\"\n")
+                },
+                commandHistoryStore: self.commandHistoryStore,
+                onCommandClick: { [weak self] command in
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    surface.sendText(command)
+                },
+                onCommandRemove: { [weak self] command in
+                    self?.commandHistoryStore.removeCommand(command)
+                }
+            )
         }
 
         // Clear out our frame at this point, the fixup from above is complete.

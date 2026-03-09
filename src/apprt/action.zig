@@ -315,6 +315,9 @@ pub const Action = union(Key) {
     /// Show the on-screen keyboard.
     show_on_screen_keyboard,
 
+    /// A command has started in the shell with the given command line text.
+    command_started: CommandStarted,
+
     /// A command has finished,
     command_finished: CommandFinished,
 
@@ -399,6 +402,7 @@ pub const Action = union(Key) {
         show_child_exited,
         progress_report,
         show_on_screen_keyboard,
+        command_started,
         command_finished,
         start_search,
         end_search,
@@ -932,6 +936,23 @@ pub const CloseTabMode = enum(c_int) {
 
     test "ghostty.h CloseTabMode" {
         try lib.checkGhosttyHEnum(CloseTabMode, "GHOSTTY_ACTION_CLOSE_TAB_MODE_");
+    }
+};
+
+pub const CommandStarted = struct {
+    cmdline: [:0]const u8,
+
+    /// sync with ghostty_action_command_started_s in ghostty.h
+    pub const C = extern struct {
+        cmdline: [*:0]const u8,
+        len: usize,
+    };
+
+    pub fn cval(self: CommandStarted) C {
+        return .{
+            .cmdline = self.cmdline.ptr,
+            .len = self.cmdline.len,
+        };
     }
 };
 

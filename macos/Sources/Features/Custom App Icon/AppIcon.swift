@@ -12,6 +12,7 @@ enum AppIcon: Equatable, Codable {
     case paper
     case retro
     case xray
+    case mGreen
     /// Save full image data to avoid sandboxing issues
     case custom(_ iconFile: Data)
     case customStyle(_ icon: ColorizedGhosttyIcon)
@@ -81,6 +82,8 @@ enum AppIcon: Equatable, Codable {
             return NSImage(data: file)
         case let .customStyle(customIcon):
             return customIcon.makeImage(in: bundle)
+        case .mGreen:
+            return MGreenAppIcon.makeImage()
         }
     }
 }

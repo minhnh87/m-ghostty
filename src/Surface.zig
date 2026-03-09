@@ -1106,8 +1106,24 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
             try self.selectionScrollTick();
         },
 
-        .start_command => {
+        .start_command => |w| {
+            defer w.deinit();
             self.command_timer = try .now();
+
+            // Forward the command line text to the apprt if available.
+            const cmdline_slice = w.slice();
+            if (cmdline_slice.len > 0) {
+                const str = try self.alloc.dupeZ(u8, cmdline_slice);
+                defer self.alloc.free(str);
+
+                _ = self.rt_app.performAction(
+                    .{ .surface = self },
+                    .command_started,
+                    .{ .cmdline = str },
+                ) catch |err| {
+                    log.warn("apprt failed to notify command start={}", .{err});
+                };
+            }
         },
 
         .stop_command => |v| timer: {

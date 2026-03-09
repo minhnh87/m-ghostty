@@ -22,9 +22,11 @@
     printf "\e]133;A\a"
   }
 
-  fn mark-output-start {|_|
+  fn mark-output-start {|cmd|
     set-prompt-state 'pre-exec'
-    printf "\e]133;C\a"
+    # URL-encode the command text for cmdline_url (encode %, ;, and newlines)
+    var encoded-cmd = (str:replace '%' '%25' $cmd | str:replace ';' '%3B' (one) | str:replace "\n" '%0A' (one) | str:replace "\r" '%0D' (one))
+    printf "\e]133;C;cmdline_url=%s\a" $encoded-cmd
   }
 
   fn mark-output-end {|cmd-info|

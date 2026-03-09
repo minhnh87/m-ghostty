@@ -35,6 +35,12 @@ class BaseTerminalController: NSWindowController,
     /// The app instance that this terminal view will represent.
     let ghostty: Ghostty.App
 
+    /// The folder sidebar store for tracking visited directories.
+    let folderSidebarStore = FolderSidebarStore()
+
+    /// The command history store for tracking executed commands.
+    let commandHistoryStore = CommandHistoryStore()
+
     /// The currently focused surface.
     var focusedSurface: Ghostty.SurfaceView? {
         didSet { syncFocusToSurfaceTree() }
@@ -212,6 +218,11 @@ class BaseTerminalController: NSWindowController,
             self,
             selector: #selector(ghosttySurfaceDragEndedNoTarget(_:)),
             name: .ghosttySurfaceDragEndedNoTarget,
+            object: nil)
+        center.addObserver(
+            self,
+            selector: #selector(ghosttyCommandStarted(_:)),
+            name: Ghostty.Notification.ghosttyCommandStarted,
             object: nil)
 
         // Listen for local events that we need to know of outside of
@@ -770,6 +781,13 @@ class BaseTerminalController: NSWindowController,
             confirmUndo: false)
     }
 
+    @objc private func ghosttyCommandStarted(_ notification: Notification) {
+        guard let target = notification.object as? Ghostty.SurfaceView else { return }
+        guard surfaceTree.contains(target) else { return }
+        guard let cmdline = notification.userInfo?[Ghostty.Notification.CommandLineKey] as? String else { return }
+        commandHistoryStore.addCommand(cmdline)
+    }
+
     // MARK: Local Events
 
     private func localEventHandler(_ event: NSEvent) -> NSEvent? {
@@ -861,6 +879,11 @@ class BaseTerminalController: NSWindowController,
             window.representedURL = to
         } else {
             window.representedURL = nil
+        }
+
+        // Add folder to sidebar
+        if let to {
+            folderSidebarStore.addFolder(to.path)
         }
     }
 

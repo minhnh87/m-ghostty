@@ -642,6 +642,9 @@ extension Ghostty {
             case GHOSTTY_ACTION_COMMAND_FINISHED:
                 commandFinished(app, target: target, v: action.action.command_finished)
 
+            case GHOSTTY_ACTION_COMMAND_STARTED:
+                commandStarted(app, target: target, v: action.action.command_started)
+
             case GHOSTTY_ACTION_PRESENT_TERMINAL:
                 return presentTerminal(app, target: target)
 
@@ -1471,6 +1474,37 @@ extension Ghostty {
                         requireFocus: false
                     )
                 }
+
+            default:
+                assertionFailure()
+            }
+        }
+
+        private static func commandStarted(
+            _ app: ghostty_app_t,
+            target: ghostty_target_s,
+            v: ghostty_action_command_started_s
+        ) {
+            switch target.tag {
+            case GHOSTTY_TARGET_APP:
+                Ghostty.logger.warning("command started does nothing with an app target")
+                return
+
+            case GHOSTTY_TARGET_SURFACE:
+                guard let surface = target.target.surface else { return }
+                guard let surfaceView = self.surfaceView(from: surface) else { return }
+                guard let cmdline = String(
+                    bytesNoCopy: UnsafeMutableRawPointer(mutating: v.cmdline),
+                    length: v.len,
+                    encoding: .utf8,
+                    freeWhenDone: false
+                ) else { return }
+
+                NotificationCenter.default.post(
+                    name: Ghostty.Notification.ghosttyCommandStarted,
+                    object: surfaceView,
+                    userInfo: [Ghostty.Notification.CommandLineKey: cmdline]
+                )
 
             default:
                 assertionFailure()
