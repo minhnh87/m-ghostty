@@ -1063,6 +1063,17 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 },
                 onCommandRemove: { [weak self] command in
                     self?.commandHistoryStore.removeCommand(command)
+                },
+                sshProfileStore: self.sshProfileStore,
+                onSSHConnect: { [weak self] command in
+                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    surface.sendText(command)
+                },
+                onSSHConnectNewTab: { [weak self] command in
+                    guard let self, let window = self.window else { return }
+                    var config = Ghostty.SurfaceConfiguration()
+                    config.initialInput = command
+                    _ = TerminalController.newTab(self.ghostty, from: window, withBaseConfig: config)
                 }
             )
         }

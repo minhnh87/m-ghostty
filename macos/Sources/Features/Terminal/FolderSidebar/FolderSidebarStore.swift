@@ -1,11 +1,14 @@
 import Foundation
 
+@MainActor
 class FolderSidebarStore: ObservableObject {
+    static let shared = FolderSidebarStore()
+
     @Published var folders: [String]
 
     private static let userDefaultsKey = "FolderSidebarFolders"
 
-    init() {
+    private init() {
         self.folders = UserDefaults.standard.stringArray(forKey: Self.userDefaultsKey) ?? []
     }
 

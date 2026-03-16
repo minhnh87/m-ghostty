@@ -1,13 +1,15 @@
 import Foundation
 
+@MainActor
 class CommandHistoryStore: ObservableObject {
+    static let shared = CommandHistoryStore()
+
     @Published var commands: [String]
 
     private static let userDefaultsKey = "CommandHistoryCommands"
-    private static let maxItems = 36
     private static let ignoredPrefixes = ["gc", "gt", "po", "gb", "log", "git", "ls", "ll", "gs"]
 
-    init() {
+    private init() {
         self.commands = UserDefaults.standard.stringArray(forKey: Self.userDefaultsKey) ?? []
     }
 
@@ -19,9 +21,6 @@ class CommandHistoryStore: ObservableObject {
             commands.remove(at: index)
         }
         commands.insert(command, at: 0)
-        if commands.count > Self.maxItems {
-            commands = Array(commands.prefix(Self.maxItems))
-        }
         save()
     }
 

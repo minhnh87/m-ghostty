@@ -188,6 +188,11 @@ extension Ghostty {
                     windowFocus {
                     SecureInputOverlay()
                 }
+
+                // SSH session indicator
+                if let sshSession = surfaceView.sshSession {
+                    SSHSessionIndicator(session: sshSession)
+                }
                 #endif
 
                 // Search overlay

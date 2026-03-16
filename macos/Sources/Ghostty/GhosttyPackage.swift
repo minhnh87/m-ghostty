@@ -451,6 +451,10 @@ extension Ghostty.Notification {
     /// Notification posted when a command starts in the terminal
     static let ghosttyCommandStarted = Notification.Name("com.mitchellh.ghostty.commandStarted")
     static let CommandLineKey = ghosttyCommandStarted.rawValue + ".cmdline"
+
+    /// Notification posted when a command is captured from keyboard input (fallback for SSH).
+    static let ghosttyInputCommandCaptured = Notification.Name("com.mitchellh.ghostty.inputCommandCaptured")
+    static let InputCommandKey = ghosttyInputCommandCaptured.rawValue + ".command"
 }
 
 // Make the input enum hashable.

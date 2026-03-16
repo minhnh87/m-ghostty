@@ -36,10 +36,13 @@ class BaseTerminalController: NSWindowController,
     let ghostty: Ghostty.App
 
     /// The folder sidebar store for tracking visited directories.
-    let folderSidebarStore = FolderSidebarStore()
+    let folderSidebarStore = FolderSidebarStore.shared
 
     /// The command history store for tracking executed commands.
-    let commandHistoryStore = CommandHistoryStore()
+    let commandHistoryStore = CommandHistoryStore.shared
+
+    /// The SSH profile store for managing SSH connection profiles.
+    let sshProfileStore = SSHProfileStore()
 
     /// The currently focused surface.
     var focusedSurface: Ghostty.SurfaceView? {
@@ -223,6 +226,11 @@ class BaseTerminalController: NSWindowController,
             self,
             selector: #selector(ghosttyCommandStarted(_:)),
             name: Ghostty.Notification.ghosttyCommandStarted,
+            object: nil)
+        center.addObserver(
+            self,
+            selector: #selector(ghosttyInputCommandCaptured(_:)),
+            name: Ghostty.Notification.ghosttyInputCommandCaptured,
             object: nil)
 
         // Listen for local events that we need to know of outside of
@@ -784,8 +792,19 @@ class BaseTerminalController: NSWindowController,
     @objc private func ghosttyCommandStarted(_ notification: Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard surfaceTree.contains(target) else { return }
+
+        // Mark shell integration as active so the InputTracker won't duplicate commands.
+        target.inputTracker.markShellIntegrationActive()
+
         guard let cmdline = notification.userInfo?[Ghostty.Notification.CommandLineKey] as? String else { return }
         commandHistoryStore.addCommand(cmdline)
+    }
+
+    @objc private func ghosttyInputCommandCaptured(_ notification: Notification) {
+        guard let target = notification.object as? Ghostty.SurfaceView else { return }
+        guard surfaceTree.contains(target) else { return }
+        guard let command = notification.userInfo?[Ghostty.Notification.InputCommandKey] as? String else { return }
+        commandHistoryStore.addCommand(command)
     }
 
     // MARK: Local Events

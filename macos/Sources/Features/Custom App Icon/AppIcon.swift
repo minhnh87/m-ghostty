@@ -13,6 +13,9 @@ enum AppIcon: Equatable, Codable {
     case retro
     case xray
     case mGreen
+    case iGreen
+    case nGreen
+    case hGreen
     /// Save full image data to avoid sandboxing issues
     case custom(_ iconFile: Data)
     case customStyle(_ icon: ColorizedGhosttyIcon)
@@ -84,6 +87,12 @@ enum AppIcon: Equatable, Codable {
             return customIcon.makeImage(in: bundle)
         case .mGreen:
             return MGreenAppIcon.makeImage()
+        case .iGreen:
+            return IGreenAppIcon.makeImage()
+        case .nGreen:
+            return NGreenAppIcon.makeImage()
+        case .hGreen:
+            return HGreenAppIcon.makeImage()
         }
     }
 }

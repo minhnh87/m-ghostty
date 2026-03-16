@@ -22,6 +22,7 @@ extension Ghostty {
                     titleFallbackTimer?.invalidate()
                     titleFallbackTimer = nil
                 }
+                detectSSHSession()
             }
         }
 
@@ -138,6 +139,9 @@ extension Ghostty {
         /// True when the surface should show a highlight effect (e.g., when presented via goto_split).
         @Published private(set) var highlighted: Bool = false
 
+        /// The currently detected SSH session, if any. Set by parsing the terminal title.
+        @Published private(set) var sshSession: SSHSessionInfo?
+
         // An initial size to request for a window. This will only affect
         // then the view is moved to a new window.
         var initialSize: NSSize?
@@ -221,6 +225,10 @@ extension Ghostty {
         // This is set to non-null during keyDown to accumulate insertText contents
         private var keyTextAccumulator: [String]?
 
+        // Tracks keyboard input as a fallback for command history when shell
+        // integration is not available (e.g. during SSH sessions).
+        let inputTracker = InputTracker()
+
         // A small delay that is introduced before a title change to avoid flickers
         private var titleChangeTimer: Timer?
 
@@ -229,6 +237,48 @@ extension Ghostty {
 
         // Timer to remove progress report after 15 seconds
         private var progressReportTimer: Timer?
+
+        /// Parses the terminal title to detect SSH sessions.
+        /// Shell integration typically sets the title to `user@hostname: /path` or `user@hostname /path`.
+        /// If the hostname differs from the local machine, we treat it as an SSH session.
+        private func detectSSHSession() {
+            // Pattern: user@hostname at the start of the title, optionally followed by : or space
+            let pattern = #"^([a-zA-Z0-9._-]+)@([a-zA-Z0-9._-]+)"#
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(
+                      in: title,
+                      range: NSRange(title.startIndex..., in: title)
+                  ) else {
+                if sshSession != nil { sshSession = nil }
+                return
+            }
+
+            guard let userRange = Range(match.range(at: 1), in: title),
+                  let hostRange = Range(match.range(at: 2), in: title) else {
+                if sshSession != nil { sshSession = nil }
+                return
+            }
+
+            let user = String(title[userRange])
+            let hostname = String(title[hostRange])
+
+            // Compare with local hostname to avoid false positives
+            let localHostname = ProcessInfo.processInfo.hostName
+            let localShort = localHostname.components(separatedBy: ".").first ?? localHostname
+            let remoteShort = hostname.components(separatedBy: ".").first ?? hostname
+
+            if remoteShort.lowercased() == localShort.lowercased() {
+                if sshSession != nil { sshSession = nil }
+                return
+            }
+
+            // Only create a new session if the host/user changed
+            if let existing = sshSession, existing.user == user, existing.hostname == hostname {
+                return
+            }
+
+            sshSession = SSHSessionInfo(user: user, hostname: hostname, connectedAt: Date())
+        }
 
         // This is the title from the terminal. This is nil if we're currently using
         // the terminal title as the main title property. If the title is set manually
@@ -1041,6 +1091,32 @@ extension Ghostty {
 
             // On any keyDown event we unset our bell state
             bell = false
+
+            // Track keyboard input for command history fallback (SSH sessions).
+            // Only fires when shell integration has NOT sent OSC 133.
+            if !event.isARepeat {
+                switch event.keyCode {
+                case 36, 76: // Return, numpad Enter
+                    if !inputTracker.hasShellIntegration,
+                       let command = inputTracker.handleEnter() {
+                        NotificationCenter.default.post(
+                            name: Ghostty.Notification.ghosttyInputCommandCaptured,
+                            object: self,
+                            userInfo: [Ghostty.Notification.InputCommandKey: command]
+                        )
+                    } else {
+                        inputTracker.reset()
+                    }
+                case 51: // Backspace
+                    inputTracker.handleBackspace()
+                default:
+                    // Ctrl+C: keyCode 8 is 'c', check for control modifier
+                    if event.keyCode == 8,
+                       event.modifierFlags.contains(.control) {
+                        inputTracker.reset()
+                    }
+                }
+            }
 
             // We need to translate the mods (maybe) to handle configs such as option-as-alt
             let translationModsGhostty = Ghostty.eventModifierFlags(
@@ -1933,6 +2009,9 @@ extension Ghostty.SurfaceView: NSTextInputClient {
 
         // If insertText is called, our preedit must be over.
         unmarkText()
+
+        // Track the typed text for command history fallback (SSH sessions).
+        inputTracker.appendText(chars)
 
         // If we have an accumulator we're in another key event so we just
         // accumulate and return.

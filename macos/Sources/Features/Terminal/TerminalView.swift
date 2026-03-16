@@ -57,6 +57,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     var onCommandClick: (String) -> Void
     var onCommandRemove: (String) -> Void
 
+    // SSH profiles sidebar
+    @ObservedObject var sshProfileStore: SSHProfileStore
+    var onSSHConnect: (String) -> Void
+    var onSSHConnectNewTab: (String) -> Void
+
     /// The most recently focused surface, equal to `focusedSurface` when it is non-nil.
     @State private var lastFocusedSurface: Weak<Ghostty.SurfaceView>?
 
@@ -65,6 +70,17 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
     /// Whether the command history sidebar is visible.
     @State private var commandHistoryVisible: Bool = false
+
+    /// Whether the SSH profiles sidebar is visible.
+    @State private var sshProfilesVisible: Bool = false
+
+    /// Tracks which right sidebar was last toggled (to handle mutual exclusion).
+    @State private var lastRightSidebar: RightSidebar = .commandHistory
+
+    private enum RightSidebar {
+        case commandHistory
+        case sshProfiles
+    }
 
     // This seems like a crutch after switching from SwiftUI to AppKit lifecycle.
     @FocusState private var focused: Bool
@@ -155,7 +171,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
 
                 // Command history right sidebar
-                if commandHistoryVisible {
+                if commandHistoryVisible && lastRightSidebar == .commandHistory {
                     Divider()
 
                     CommandHistorySidebarView(
@@ -166,15 +182,46 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     .frame(width: geometry.size.width / 3)
                     .transition(.move(edge: .trailing))
                 }
+
+                // SSH profiles right sidebar
+                if sshProfilesVisible && lastRightSidebar == .sshProfiles {
+                    Divider()
+
+                    SSHProfilesSidebarView(
+                        store: sshProfileStore,
+                        onSSHConnect: onSSHConnect,
+                        onSSHConnectNewTab: onSSHConnectNewTab
+                    )
+                    .frame(width: geometry.size.width / 3)
+                    .transition(.move(edge: .trailing))
+                }
             }
             .animation(.easeInOut(duration: 0.2), value: folderSidebarVisible)
             .animation(.easeInOut(duration: 0.2), value: commandHistoryVisible)
+            .animation(.easeInOut(duration: 0.2), value: sshProfilesVisible)
+            .animation(.easeInOut(duration: 0.2), value: lastRightSidebar)
             .background {
                 Button("") { folderSidebarVisible.toggle() }
                     .keyboardShortcut("l", modifiers: .command)
                     .hidden()
-                Button("") { commandHistoryVisible.toggle() }
+                Button("") {
+                    commandHistoryVisible.toggle()
+                    if commandHistoryVisible {
+                        lastRightSidebar = .commandHistory
+                        sshProfilesVisible = false
+                    }
+                }
                     .keyboardShortcut("e", modifiers: .command)
+                    .hidden()
+                Button("") {
+                    sshProfilesVisible.toggle()
+                    if sshProfilesVisible {
+                        lastRightSidebar = .sshProfiles
+                        commandHistoryVisible = false
+                        sshProfileStore.reload()
+                    }
+                }
+                    .keyboardShortcut("s", modifiers: .command)
                     .hidden()
             }
             } // GeometryReader

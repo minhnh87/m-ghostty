@@ -50,6 +50,14 @@ This is a fork of Ghostty with the following customizations:
 - Toggled with Cmd+L
 - Files: `macos/Sources/Features/Terminal/FolderSidebar/`, `macos/Sources/Features/Terminal/TerminalView.swift`
 
+### SSH Profiles Sidebar (Cmd+S)
+- Right sidebar showing SSH connection profiles parsed from `~/.ssh/config`
+- Toggled with Cmd+S, mutually exclusive with Command History sidebar
+- Click sends ssh command to terminal, Cmd+Click opens new tab with ssh command
+- Supports manual profiles stored in UserDefaults, addable via "+" button
+- Right-click on manual profiles to remove them
+- Files: `macos/Sources/Features/Terminal/SSHProfiles/`
+
 ### Custom Green "M" App Icon
 - Programmatically generated green gradient icon with white "M" letter
 - Set as default icon (replaces official Ghostty icon)
