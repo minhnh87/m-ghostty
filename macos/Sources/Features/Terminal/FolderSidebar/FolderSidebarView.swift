@@ -9,13 +9,6 @@ struct FolderSidebarView: View {
     /// Called when a folder is Cmd+clicked (opens new tab).
     var onFolderCmdClick: (String) -> Void
 
-    @State private var sidebarWidth: CGFloat = 250
-    @GestureState private var dragOffset: CGFloat = 0
-
-    private var effectiveWidth: CGFloat {
-        min(max(sidebarWidth + dragOffset, 150), 400)
-    }
-
     private var sortedFolders: [String] {
         store.folders.sorted {
             ($0 as NSString).lastPathComponent.localizedCaseInsensitiveCompare(($1 as NSString).lastPathComponent) == .orderedAscending
@@ -30,31 +23,7 @@ struct FolderSidebarView: View {
                 folderList
             }
         }
-        .frame(width: effectiveWidth)
         .background(Color(red: 0.11, green: 0.11, blue: 0.11))
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: 6)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.resizeLeftRight.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
-                .gesture(
-                    DragGesture()
-                        .updating($dragOffset) { value, state, _ in
-                            state = value.translation.width
-                        }
-                        .onEnded { value in
-                            let newWidth = sidebarWidth + value.translation.width
-                            sidebarWidth = min(max(newWidth, 150), 400)
-                        }
-                )
-        }
     }
 
     // MARK: - Subviews
@@ -73,18 +42,20 @@ struct FolderSidebarView: View {
 
     @ViewBuilder
     private var folderList: some View {
-        List {
-            ForEach(sortedFolders, id: \.self) { path in
-                FolderSidebarRow(
-                    path: path,
-                    onFolderClick: onFolderClick,
-                    onFolderCmdClick: onFolderCmdClick,
-                    onRemove: { store.removeFolder(path) }
-                )
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(sortedFolders, id: \.self) { path in
+                    FolderSidebarRow(
+                        path: path,
+                        onFolderClick: onFolderClick,
+                        onFolderCmdClick: onFolderCmdClick,
+                        onRemove: { store.removeFolder(path) }
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
             }
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
     }
 }
 
@@ -99,31 +70,29 @@ private struct FolderSidebarRow: View {
     @State private var isHovered: Bool = false
 
     var body: some View {
-        Button(action: { handleClick() }) {
-            Text(shortPath)
-                .foregroundColor(isHovered ? Color(red: 0.85, green: 0.85, blue: 0.85) : Color(red: 0.55, green: 0.55, blue: 0.55))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .font(.system(size: 13))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(path)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
+        Text(shortPath)
+            .foregroundColor(isHovered ? Color(red: 0.85, green: 0.85, blue: 0.85) : Color(red: 0.55, green: 0.55, blue: 0.55))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .font(.system(size: 13, design: .monospaced))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                handleClick()
             }
-        }
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
-        .overlay {
-            RightClickHandler {
-                onRemove()
+            .overlay(
+                RightClickHandler { onRemove() }
+            )
+            .help(path)
+            .onHover { hovering in
+                isHovered = hovering
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
             }
-        }
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 
     private func handleClick() {

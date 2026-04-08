@@ -59,27 +59,20 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
     // SSH profiles sidebar
     @ObservedObject var sshProfileStore: SSHProfileStore
-    var onSSHConnect: (String) -> Void
-    var onSSHConnectNewTab: (String) -> Void
+    var onSSHConnect: (SSHProfile) -> Void
+    var onSSHConnectNewTab: (SSHProfile) -> Void
+
 
     /// The most recently focused surface, equal to `focusedSurface` when it is non-nil.
     @State private var lastFocusedSurface: Weak<Ghostty.SurfaceView>?
 
-    /// Whether the folder sidebar is visible.
-    @State private var folderSidebarVisible: Bool = false
+    /// Which sidebar panel is currently visible (nil = all closed).
+    @State private var activeSidebar: SidebarPanel? = nil
 
-    /// Whether the command history sidebar is visible.
-    @State private var commandHistoryVisible: Bool = false
-
-    /// Whether the SSH profiles sidebar is visible.
-    @State private var sshProfilesVisible: Bool = false
-
-    /// Tracks which right sidebar was last toggled (to handle mutual exclusion).
-    @State private var lastRightSidebar: RightSidebar = .commandHistory
-
-    private enum RightSidebar {
+    private enum SidebarPanel: CaseIterable {
         case commandHistory
         case sshProfiles
+        case folders
     }
 
     // This seems like a crutch after switching from SwiftUI to AppKit lifecycle.
@@ -104,19 +97,8 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
             ErrorView()
         case .ready:
             GeometryReader { geometry in
+            VStack(spacing: 0) {
             HStack(spacing: 0) {
-                // Folder left sidebar
-                if folderSidebarVisible {
-                    FolderSidebarView(
-                        store: folderSidebarStore,
-                        onFolderClick: onFolderClick,
-                        onFolderCmdClick: onFolderCmdClick
-                    )
-                    .transition(.move(edge: .leading))
-
-                    Divider()
-                }
-
                 ZStack {
                     VStack(spacing: 0) {
                         // If we're running in debug mode we show a warning so that users
@@ -171,7 +153,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
 
                 // Command history right sidebar
-                if commandHistoryVisible && lastRightSidebar == .commandHistory {
+                if activeSidebar == .commandHistory {
                     Divider()
 
                     CommandHistorySidebarView(
@@ -184,45 +166,60 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 }
 
                 // SSH profiles right sidebar
-                if sshProfilesVisible && lastRightSidebar == .sshProfiles {
+                if activeSidebar == .sshProfiles {
                     Divider()
 
                     SSHProfilesSidebarView(
                         store: sshProfileStore,
                         onSSHConnect: onSSHConnect,
-                        onSSHConnectNewTab: onSSHConnectNewTab
+                        onSSHConnectNewTab: onSSHConnectNewTab,
+                        onPasswordFill: { password in
+                            if let surfaceModel = lastFocusedSurface?.value?.surfaceModel {
+                                surfaceModel.sendText(password + "\n")
+                            }
+                        }
                     )
                     .frame(width: geometry.size.width / 3)
                     .transition(.move(edge: .trailing))
                 }
-            }
-            .animation(.easeInOut(duration: 0.2), value: folderSidebarVisible)
-            .animation(.easeInOut(duration: 0.2), value: commandHistoryVisible)
-            .animation(.easeInOut(duration: 0.2), value: sshProfilesVisible)
-            .animation(.easeInOut(duration: 0.2), value: lastRightSidebar)
-            .background {
-                Button("") { folderSidebarVisible.toggle() }
-                    .keyboardShortcut("l", modifiers: .command)
-                    .hidden()
-                Button("") {
-                    commandHistoryVisible.toggle()
-                    if commandHistoryVisible {
-                        lastRightSidebar = .commandHistory
-                        sshProfilesVisible = false
-                    }
+
+                // Folder sidebar (right side)
+                if activeSidebar == .folders {
+                    Divider()
+
+                    FolderSidebarView(
+                        store: folderSidebarStore,
+                        onFolderClick: onFolderClick,
+                        onFolderCmdClick: onFolderCmdClick
+                    )
+                    .frame(width: geometry.size.width / 3)
+                    .transition(.move(edge: .trailing))
                 }
-                    .keyboardShortcut("e", modifiers: .command)
-                    .hidden()
+
+            }
+            } // VStack
+            .animation(.easeInOut(duration: 0.2), value: activeSidebar)
+            .background {
                 Button("") {
-                    sshProfilesVisible.toggle()
-                    if sshProfilesVisible {
-                        lastRightSidebar = .sshProfiles
-                        commandHistoryVisible = false
+                    // Cycle: nil → commandHistory → sshProfiles → folders → nil
+                    let panels = SidebarPanel.allCases
+                    if let current = activeSidebar, let idx = panels.firstIndex(of: current) {
+                        let nextIdx = panels.index(after: idx)
+                        if nextIdx < panels.endIndex {
+                            activeSidebar = panels[nextIdx]
+                        } else {
+                            activeSidebar = nil
+                        }
+                    } else {
+                        activeSidebar = panels.first
+                    }
+                    // Reload SSH profiles when switching to that panel
+                    if activeSidebar == .sshProfiles {
                         sshProfileStore.reload()
                     }
                 }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .hidden()
+                .keyboardShortcut("e", modifiers: .command)
+                .hidden()
             }
             } // GeometryReader
         }

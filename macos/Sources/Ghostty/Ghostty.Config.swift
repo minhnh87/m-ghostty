@@ -469,15 +469,22 @@ extension Ghostty {
 
         var backgroundColor: Color {
             var color: ghostty_config_color_s = .init()
-            let bg_key = "background"
-            if !ghostty_config_get(config, &color, bg_key, UInt(bg_key.lengthOfBytes(using: .utf8))) {
+
+            // prefer-background overrides background when set
+            let prefer_key = "prefer-background"
+            let hasPrefer = ghostty_config_get(config, &color, prefer_key, UInt(prefer_key.lengthOfBytes(using: .utf8)))
+
+            if !hasPrefer {
+                let bg_key = "background"
+                if !ghostty_config_get(config, &color, bg_key, UInt(bg_key.lengthOfBytes(using: .utf8))) {
 #if os(macOS)
-                return Color(NSColor.windowBackgroundColor)
+                    return Color(NSColor.windowBackgroundColor)
 #elseif os(iOS)
-                return Color(UIColor.systemBackground)
+                    return Color(UIColor.systemBackground)
 #else
 #error("unsupported")
 #endif
+                }
             }
 
             return .init(

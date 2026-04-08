@@ -593,6 +593,11 @@ theme: ?Theme = null,
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 background: Color = .{ .r = 0x28, .g = 0x2C, .b = 0x34 },
 
+/// Preferred background color. When set, this takes priority over
+/// `background`. This is useful for overriding the background color
+/// without modifying theme defaults.
+prefer_background: ?Color = null,
+
 /// Foreground color for the window.
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 foreground: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },

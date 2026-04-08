@@ -6,7 +6,7 @@ struct CommandHistorySidebarView: View {
     /// Called when a command is clicked (left click) — sends command to terminal.
     var onCommandClick: (String) -> Void
 
-    /// Called when a command is Cmd+Clicked — removes it from history.
+    /// Called when a command is removed via right-click.
     var onCommandRemove: (String) -> Void
 
     var body: some View {
@@ -36,17 +36,74 @@ struct CommandHistorySidebarView: View {
 
     @ViewBuilder
     private var commandList: some View {
-        List {
-            ForEach(store.commands, id: \.self) { command in
-                CommandHistoryRow(
-                    command: command,
-                    onCommandClick: onCommandClick,
-                    onRemove: { onCommandRemove(command) }
-                )
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(store.commands, id: \.self) { command in
+                    CommandHistoryRow(
+                        command: command,
+                        onCommandClick: onCommandClick,
+                        onRemove: { onCommandRemove(command) }
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
             }
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
+    }
+}
+
+// MARK: - Right Click Helper
+
+private struct RightClickHandler: NSViewRepresentable {
+    var onRightClick: () -> Void
+
+    func makeNSView(context: Context) -> RightClickNSView {
+        let view = RightClickNSView()
+        view.onRightClick = onRightClick
+        return view
+    }
+
+    func updateNSView(_ nsView: RightClickNSView, context: Context) {
+        nsView.onRightClick = onRightClick
+    }
+}
+
+private class RightClickNSView: NSView {
+    var onRightClick: (() -> Void)?
+    private var monitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil && monitor == nil {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+                guard let self = self, let window = self.window else { return event }
+                let locationInView = self.convert(event.locationInWindow, from: nil)
+                if self.bounds.contains(locationInView) {
+                    self.onRightClick?()
+                    return nil // consume the right-click
+                }
+                return event
+            }
+        }
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        if superview == nil, let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    deinit {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    // Pass through all hit testing so left clicks reach SwiftUI
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
     }
 }
 
@@ -68,12 +125,11 @@ private struct CommandHistoryRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
-                if NSEvent.modifierFlags.contains(.command) {
-                    onRemove()
-                } else {
-                    onCommandClick(command)
-                }
+                onCommandClick(command)
             }
+            .overlay(
+                RightClickHandler(onRightClick: { onRemove() })
+            )
             .help(command)
             .onHover { hovering in
                 isHovered = hovering

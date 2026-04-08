@@ -163,14 +163,16 @@ class QuickTerminalController: BaseTerminalController {
                     self?.commandHistoryStore.removeCommand(command)
                 },
                 sshProfileStore: self.sshProfileStore,
-                onSSHConnect: { [weak self] command in
+                onSSHConnect: { [weak self] profile in
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
-                    surface.sendText(command)
+                    let autoConnect = SSHAutoConnect()
+                    autoConnect.connect(profile: profile, to: surface)
                 },
-                onSSHConnectNewTab: { [weak self] command in
+                onSSHConnectNewTab: { [weak self] profile in
                     // Quick terminal doesn't support tabs, fallback to sending in current surface
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
-                    surface.sendText(command)
+                    let autoConnect = SSHAutoConnect()
+                    autoConnect.connect(profile: profile, to: surface)
                 }
             )
         }
