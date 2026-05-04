@@ -1,0 +1,22 @@
+{
+  "scripts": [
+    {
+      "name": "init",
+      "command": "make init",
+      "mode": "command",
+      "category": "other"
+    },
+    {
+      "name": "glad",
+      "command": "make glad",
+      "mode": "command",
+      "category": "other"
+    },
+    {
+      "name": "clean",
+      "command": "make clean",
+      "mode": "command",
+      "category": "other"
+    }
+  ]
+}

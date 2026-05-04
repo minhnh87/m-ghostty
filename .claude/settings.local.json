@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__workspace-mcp__workspace_api",
+      "Bash(xcodebuild:*)",
+      "mcp__auggie__codebase-retrieval",
+      "Bash(zig build:*)",
+      "Bash(open:*)",
+      "Bash(xattr:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
