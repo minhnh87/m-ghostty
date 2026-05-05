@@ -470,20 +470,25 @@ extension Ghostty {
         var backgroundColor: Color {
             var color: ghostty_config_color_s = .init()
 
-            // prefer-background overrides background when set
-            let prefer_key = "prefer-background"
-            let hasPrefer = ghostty_config_get(config, &color, prefer_key, UInt(prefer_key.lengthOfBytes(using: .utf8)))
+            // custom-background overrides everything; prefer-background overrides background.
+            let custom_key = "custom-background"
+            let hasCustom = ghostty_config_get(config, &color, custom_key, UInt(custom_key.lengthOfBytes(using: .utf8)))
 
-            if !hasPrefer {
-                let bg_key = "background"
-                if !ghostty_config_get(config, &color, bg_key, UInt(bg_key.lengthOfBytes(using: .utf8))) {
+            if !hasCustom {
+                let prefer_key = "prefer-background"
+                let hasPrefer = ghostty_config_get(config, &color, prefer_key, UInt(prefer_key.lengthOfBytes(using: .utf8)))
+
+                if !hasPrefer {
+                    let bg_key = "background"
+                    if !ghostty_config_get(config, &color, bg_key, UInt(bg_key.lengthOfBytes(using: .utf8))) {
 #if os(macOS)
-                    return Color(NSColor.windowBackgroundColor)
+                        return Color(NSColor.windowBackgroundColor)
 #elseif os(iOS)
-                    return Color(UIColor.systemBackground)
+                        return Color(UIColor.systemBackground)
 #else
 #error("unsupported")
 #endif
+                    }
                 }
             }
 
@@ -492,6 +497,26 @@ extension Ghostty {
                 green: Double(color.g) / 255,
                 blue: Double(color.b) / 255
             )
+        }
+
+        /// The current effective background as a lowercase `#rrggbb` string. Mirrors `backgroundColor`'s
+        /// custom-background → prefer-background → background lookup chain. Falls back to `#1e1e1e`
+        /// (Ghostty's default) when no config value is available.
+        var backgroundColorHex: String {
+            var color: ghostty_config_color_s = .init()
+            let custom_key = "custom-background"
+            let hasCustom = ghostty_config_get(config, &color, custom_key, UInt(custom_key.lengthOfBytes(using: .utf8)))
+            if !hasCustom {
+                let prefer_key = "prefer-background"
+                let hasPrefer = ghostty_config_get(config, &color, prefer_key, UInt(prefer_key.lengthOfBytes(using: .utf8)))
+                if !hasPrefer {
+                    let bg_key = "background"
+                    if !ghostty_config_get(config, &color, bg_key, UInt(bg_key.lengthOfBytes(using: .utf8))) {
+                        return "#1e1e1e"
+                    }
+                }
+            }
+            return String(format: "#%02x%02x%02x", color.r, color.g, color.b)
         }
 
         var backgroundOpacity: Double {

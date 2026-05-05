@@ -62,6 +62,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     var onSSHConnect: (SSHProfile) -> Void
     var onSSHConnectNewTab: (SSHProfile) -> Void
 
+    // Custom background (rendered inside SSH profiles panel)
+    @ObservedObject var customBackgroundStore: CustomBackgroundStore
+    var initialBackgroundHex: String
+    var onCustomBackgroundApply: (String?) -> Void
+
 
     /// The most recently focused surface, equal to `focusedSurface` when it is non-nil.
     @State private var lastFocusedSurface: Weak<Ghostty.SurfaceView>?
@@ -177,7 +182,10 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                             if let surfaceModel = lastFocusedSurface?.value?.surfaceModel {
                                 surfaceModel.sendText(password + "\n")
                             }
-                        }
+                        },
+                        customBackgroundStore: customBackgroundStore,
+                        initialBackgroundHex: initialBackgroundHex,
+                        onCustomBackgroundApply: onCustomBackgroundApply
                     )
                     .frame(width: geometry.size.width / 3)
                     .transition(.move(edge: .trailing))

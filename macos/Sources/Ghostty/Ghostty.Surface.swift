@@ -48,6 +48,21 @@ extension Ghostty {
             }
         }
 
+        /// Inject an OSC 11 background color change directly into the terminal's stream parser,
+        /// bypassing the PTY/shell. Accepts hex strings of length 3, 4, 6, or 8 with an optional
+        /// leading `#`. Takes effect silently — no shell history, no prompt artifact, works inside
+        /// TUIs.
+        @MainActor
+        func setBackgroundColor(_ hex: String) {
+            let len = hex.utf8CString.count
+            if len == 0 { return }
+
+            hex.withCString { ptr in
+                // len includes the null terminator so we do len - 1
+                ghostty_surface_set_background_color(surface, ptr, UInt(len - 1))
+            }
+        }
+
         /// Send a key event to the terminal.
         ///
         /// This sends the full key event including modifiers, action type, and text to the terminal.

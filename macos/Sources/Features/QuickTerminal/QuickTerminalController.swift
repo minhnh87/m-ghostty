@@ -173,6 +173,14 @@ class QuickTerminalController: BaseTerminalController {
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
                     let autoConnect = SSHAutoConnect()
                     autoConnect.connect(profile: profile, to: surface)
+                },
+                customBackgroundStore: self.customBackgroundStore,
+                initialBackgroundHex: ghostty.config.backgroundColorHex,
+                onCustomBackgroundApply: { [weak self] hexOpt in
+                    guard let self else { return }
+                    let target = hexOpt ?? self.ghostty.config.backgroundColorHex
+                    let normalized = CustomBackgroundStore.normalizeHexToRRGGBB(target)
+                    CustomBackgroundStore.applyToAllSurfaces(hexRRGGBB: normalized)
                 }
             )
         }

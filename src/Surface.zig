@@ -824,6 +824,49 @@ pub fn close(self: *Surface) void {
     self.rt_surface.close(self.needsConfirmQuit());
 }
 
+/// Inject an OSC 11 background color change directly into this surface's
+/// terminal stream, bypassing the PTY/shell. Accepts hex strings of length
+/// 3, 4, 6, or 8 with an optional leading `#`. Length 4/8 forms include an
+/// alpha component which is ignored by OSC 11; we forward the raw input so
+/// the existing OSC parser can decide.
+pub fn setBackgroundColor(
+    self: *Surface,
+    hex: []const u8,
+) !void {
+    // Strip optional leading '#'.
+    const color = if (hex.len > 0 and hex[0] == '#') hex[1..] else hex;
+
+    // Validate length and hex digits.
+    switch (color.len) {
+        3, 4, 6, 8 => {},
+        else => return error.InvalidColorLength,
+    }
+    for (color) |c| switch (c) {
+        '0'...'9', 'a'...'f', 'A'...'F' => {},
+        else => return error.InvalidColorChar,
+    };
+
+    // Build OSC 11 sequence: ESC ] 11 ; #<hex> BEL
+    var buf: [32]u8 = undefined;
+    const seq = std.fmt.bufPrint(
+        &buf,
+        "\x1b]11;#{s}\x07",
+        .{color},
+    ) catch unreachable;
+
+    // Allocate a persistent copy that the IO thread will free after
+    // processing the message.
+    const owned = try self.alloc.dupe(u8, seq);
+    errdefer self.alloc.free(owned);
+
+    self.queueIo(.{
+        .inject_stream_alloc = .{
+            .alloc = self.alloc,
+            .data = owned,
+        },
+    }, .unlocked);
+}
+
 /// Returns a mailbox that can be used to send messages to this surface.
 inline fn surfaceMailbox(self: *Surface) Mailbox {
     return .{

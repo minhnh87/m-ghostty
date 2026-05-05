@@ -1075,6 +1075,14 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                     var config = Ghostty.SurfaceConfiguration()
                     config.initialInput = profile.sshCommand()
                     _ = TerminalController.newTab(self.ghostty, from: window, withBaseConfig: config)
+                },
+                customBackgroundStore: self.customBackgroundStore,
+                initialBackgroundHex: ghostty.config.backgroundColorHex,
+                onCustomBackgroundApply: { [weak self] hexOpt in
+                    guard let self else { return }
+                    let target = hexOpt ?? self.ghostty.config.backgroundColorHex
+                    let normalized = CustomBackgroundStore.normalizeHexToRRGGBB(target)
+                    CustomBackgroundStore.applyToAllSurfaces(hexRRGGBB: normalized)
                 }
             )
         }

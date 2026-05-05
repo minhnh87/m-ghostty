@@ -180,6 +180,7 @@
 				Features/Splits/TerminalSplitTreeView.swift,
 				Features/Terminal/BaseTerminalController.swift,
 				Features/Terminal/ErrorView.swift,
+				"Features/Terminal/CustomConfig/CustomBackgroundStore.swift",
 				"Features/Terminal/FolderSidebar/FolderSidebarStore.swift",
 				"Features/Terminal/CommandHistory/CommandHistoryStore.swift",
 				"Features/Terminal/CommandHistory/InputTracker.swift",

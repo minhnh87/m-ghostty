@@ -44,6 +44,10 @@ class BaseTerminalController: NSWindowController,
     /// The SSH profile store for managing SSH connection profiles.
     let sshProfileStore = SSHProfileStore()
 
+    /// The session-only custom background override store, surfaced in the SSH panel. Singleton so
+    /// state stays in sync across windows.
+    let customBackgroundStore = CustomBackgroundStore.shared
+
     /// The currently focused surface.
     var focusedSurface: Ghostty.SurfaceView? {
         didSet { syncFocusToSurfaceTree() }
@@ -310,6 +314,15 @@ class BaseTerminalController: NSWindowController,
         // If our surface tree becomes empty then we have no focused surface.
         if to.isEmpty {
             focusedSurface = nil
+        }
+
+        // Replay any active session bg override onto newly-added surfaces (new tab/window/split)
+        // so they boot with the override instead of the config default.
+        if let hex = CustomBackgroundStore.shared.customBackground {
+            let normalized = CustomBackgroundStore.normalizeHexToRRGGBB(hex)
+            for surfaceView in to where !from.contains(surfaceView) {
+                CustomBackgroundStore.applyTo(surfaceView, hexRRGGBB: normalized)
+            }
         }
     }
 

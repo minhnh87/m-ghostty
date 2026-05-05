@@ -184,7 +184,7 @@ pub const DerivedConfig = struct {
                     break :generate;
                 }
 
-                break :palette terminalpkg.color.generate256Color(config.palette.value, config.palette.mask, (config.@"prefer-background" orelse config.background).toTerminalRGB(), config.foreground.toTerminalRGB(), config.@"palette-harmonious");
+                break :palette terminalpkg.color.generate256Color(config.palette.value, config.palette.mask, (config.@"custom-background" orelse (config.@"prefer-background" orelse config.background)).toTerminalRGB(), config.foreground.toTerminalRGB(), config.@"palette-harmonious");
             }
 
             break :palette config.palette.value;
@@ -197,7 +197,7 @@ pub const DerivedConfig = struct {
             .cursor_blink = config.@"cursor-style-blink",
             .cursor_color = config.@"cursor-color",
             .foreground = config.foreground,
-            .background = config.@"prefer-background" orelse config.background,
+            .background = config.@"custom-background" orelse (config.@"prefer-background" orelse config.background),
             .osc_color_report_format = config.@"osc-color-report-format",
             .clipboard_write = config.@"clipboard-write",
             .enquiry_response = try alloc.dupe(u8, config.@"enquiry-response"),

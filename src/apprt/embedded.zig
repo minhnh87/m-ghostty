@@ -1793,6 +1793,19 @@ pub const CAPI = struct {
         surface.textCallback(ptr[0..len]);
     }
 
+    /// Inject an OSC 11 background color change directly into the terminal's
+    /// stream parser, bypassing the PTY. The hex string may be 3, 4, 6, or 8
+    /// digits with an optional leading `#`.
+    export fn ghostty_surface_set_background_color(
+        surface: *Surface,
+        ptr: [*]const u8,
+        len: usize,
+    ) void {
+        surface.core_surface.setBackgroundColor(ptr[0..len]) catch |err| {
+            log.warn("set_background_color failed: {}", .{err});
+        };
+    }
+
     /// Set the preedit text for the surface. This is used for IME
     /// composition. If the length is 0, then the preedit text is cleared.
     export fn ghostty_surface_preedit(

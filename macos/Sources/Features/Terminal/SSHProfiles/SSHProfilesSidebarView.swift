@@ -12,6 +12,17 @@ struct SSHProfilesSidebarView: View {
     /// Called when a quick password is clicked — sends password to terminal.
     var onPasswordFill: (String) -> Void
 
+    /// Store for the active session-only custom background override.
+    @ObservedObject var customBackgroundStore: CustomBackgroundStore
+
+    /// The current effective background as `#rrggbb`, used by the section to pre-fill the field
+    /// and to revert it on Clear.
+    var initialBackgroundHex: String
+
+    /// Called after the custom background store updates so the caller can broadcast the OSC 11
+    /// background override to all surfaces.
+    var onCustomBackgroundApply: (String?) -> Void
+
     @State private var isAddingProfile: Bool = false
     @State private var newHost: String = ""
     @State private var newHostname: String = ""
@@ -40,6 +51,12 @@ struct SSHProfilesSidebarView: View {
             } else {
                 profileList
             }
+            Divider()
+            CustomBackgroundSection(
+                store: customBackgroundStore,
+                initialBackgroundHex: initialBackgroundHex,
+                onApply: onCustomBackgroundApply
+            )
         }
         .background(Color(red: 0.11, green: 0.11, blue: 0.11))
         .sheet(isPresented: $isChangingPassword) {

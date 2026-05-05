@@ -617,7 +617,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     .cursor_text = config.@"cursor-text",
                     .cursor_opacity = @max(0, @min(1, config.@"cursor-opacity")),
 
-                    .background = (config.@"prefer-background" orelse config.background).toTerminalRGB(),
+                    .background = (config.@"custom-background" orelse (config.@"prefer-background" orelse config.background)).toTerminalRGB(),
                     .foreground = config.foreground.toTerminalRGB(),
                     .bold_color = config.@"bold-color",
                     .faint_opacity = @intFromFloat(@ceil(config.@"faint-opacity" * 255)),

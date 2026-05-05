@@ -598,6 +598,12 @@ background: Color = .{ .r = 0x28, .g = 0x2C, .b = 0x34 },
 /// without modifying theme defaults.
 @"prefer-background": ?Color = null,
 
+/// Custom background color. When set, this takes priority over both
+/// `prefer-background` and `background`. This is intended to be managed
+/// by user-facing UI (e.g. a custom background picker) so it can override
+/// any theme- or config-supplied background without modifying them.
+@"custom-background": ?Color = null,
+
 /// Foreground color for the window.
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 foreground: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
