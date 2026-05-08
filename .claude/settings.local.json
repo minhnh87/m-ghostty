@@ -8,7 +8,13 @@
       "Bash(open:*)",
       "Bash(xattr:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Read(//Users/minh/.config/**)",
+      "Read(//Users/minh/.config/ghostty/**)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(swift /tmp/test_custombg.swift)",
+      "Bash(killall Ghostty)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

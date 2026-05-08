@@ -1806,6 +1806,19 @@ pub const CAPI = struct {
         };
     }
 
+    /// Write raw text directly to the PTY, bypassing bracketed-paste wrapping.
+    /// Use this for programmatic command injection where a trailing CR must
+    /// trigger shell execution.
+    export fn ghostty_surface_write_text(
+        surface: *Surface,
+        ptr: [*]const u8,
+        len: usize,
+    ) void {
+        surface.core_surface.writeText(ptr[0..len]) catch |err| {
+            log.warn("write_text failed: {}", .{err});
+        };
+    }
+
     /// Set the preedit text for the surface. This is used for IME
     /// composition. If the length is 0, then the preedit text is cleared.
     export fn ghostty_surface_preedit(

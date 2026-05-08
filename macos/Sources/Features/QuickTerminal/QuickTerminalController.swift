@@ -146,18 +146,18 @@ class QuickTerminalController: BaseTerminalController {
                 onFolderClick: { [weak self] path in
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
-                    surface.sendText("cd \"\(escaped)\"\n")
+                    surface.writeText("cd \"\(escaped)\"\r")
                 },
                 onFolderCmdClick: { [weak self] path in
                     // Quick terminal doesn't support tabs, fallback to cd
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
-                    surface.sendText("cd \"\(escaped)\"\n")
+                    surface.writeText("cd \"\(escaped)\"\r")
                 },
                 commandHistoryStore: self.commandHistoryStore,
-                onCommandClick: { [weak self] command in
+                onCommandClick: { [weak self] command, execute in
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
-                    surface.sendText(command)
+                    surface.writeText(execute ? command + "\r" : command)
                 },
                 onCommandRemove: { [weak self] command in
                     self?.commandHistoryStore.removeCommand(command)

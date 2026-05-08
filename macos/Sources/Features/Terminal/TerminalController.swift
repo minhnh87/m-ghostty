@@ -1048,7 +1048,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                     // Send cd command to focused surface
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
-                    surface.sendText("cd \"\(escaped)\"\n")
+                    surface.writeText("cd \"\(escaped)\"\r")
                 },
                 onFolderCmdClick: { [weak self] path in
                     guard let self, let window = self.window else { return }
@@ -1057,9 +1057,9 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                     _ = TerminalController.newTab(self.ghostty, from: window, withBaseConfig: config)
                 },
                 commandHistoryStore: self.commandHistoryStore,
-                onCommandClick: { [weak self] command in
+                onCommandClick: { [weak self] command, execute in
                     guard let surface = self?.focusedSurface?.surfaceModel else { return }
-                    surface.sendText(command)
+                    surface.writeText(execute ? command + "\r" : command)
                 },
                 onCommandRemove: { [weak self] command in
                     self?.commandHistoryStore.removeCommand(command)

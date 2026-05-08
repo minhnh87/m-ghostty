@@ -63,6 +63,21 @@ extension Ghostty {
             }
         }
 
+        /// Write text directly to the PTY, bypassing bracketed-paste wrapping
+        /// that `sendText` applies. Use this for programmatic command injection
+        /// where a trailing `\r` must trigger shell execution rather than be
+        /// captured as pasted content.
+        @MainActor
+        func writeText(_ text: String) {
+            let len = text.utf8CString.count
+            if len == 0 { return }
+
+            text.withCString { ptr in
+                // len includes the null terminator so we do len - 1
+                ghostty_surface_write_text(surface, ptr, UInt(len - 1))
+            }
+        }
+
         /// Send a key event to the terminal.
         ///
         /// This sends the full key event including modifiers, action type, and text to the terminal.

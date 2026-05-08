@@ -54,7 +54,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
     // Command history sidebar
     @ObservedObject var commandHistoryStore: CommandHistoryStore
-    var onCommandClick: (String) -> Void
+    var onCommandClick: (String, Bool) -> Void
     var onCommandRemove: (String) -> Void
 
     // SSH profiles sidebar
@@ -205,6 +205,27 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 }
 
             }
+
+            BottomToolbarView(
+                customBackgroundStore: customBackgroundStore,
+                onCustomBackgroundApply: onCustomBackgroundApply,
+                onSendCtrlC: {
+                    guard let surface = lastFocusedSurface?.value?.surfaceModel else { return }
+                    surface.writeText("\u{0003}")
+                },
+                onSplitHorizontal: {
+                    guard let surface = lastFocusedSurface?.value?.surface else { return }
+                    ghostty.split(surface: surface, direction: GHOSTTY_SPLIT_DIRECTION_DOWN)
+                },
+                onSplitVertical: {
+                    guard let surface = lastFocusedSurface?.value?.surface else { return }
+                    ghostty.split(surface: surface, direction: GHOSTTY_SPLIT_DIRECTION_RIGHT)
+                },
+                onPaste: {
+                    guard let surfaceView = lastFocusedSurface?.value else { return }
+                    surfaceView.paste(nil)
+                }
+            )
             } // VStack
             .animation(.easeInOut(duration: 0.2), value: activeSidebar)
             .background {

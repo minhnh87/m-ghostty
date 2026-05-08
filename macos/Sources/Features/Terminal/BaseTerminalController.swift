@@ -866,8 +866,10 @@ class BaseTerminalController: NSWindowController,
            surfaceTree.contains(titleSurface) {
             // If we have a surface, we want to listen for title changes.
             titleSurface.$title
-                .combineLatest(titleSurface.$bell)
-                .map { [weak self] in self?.computeTitle(title: $0, bell: $1) ?? "" }
+                .combineLatest(titleSurface.$bell, titleSurface.$pwd)
+                .map { [weak self] title, bell, pwd in
+                    self?.computeTitle(title: title, bell: bell, pwd: pwd) ?? ""
+                }
                 .sink { [weak self] in self?.titleDidChange(to: $0) }
                 .store(in: &focusedSurfaceCancellables)
         } else {
@@ -876,13 +878,18 @@ class BaseTerminalController: NSWindowController,
         }
     }
 
-    private func computeTitle(title: String, bell: Bool) -> String {
-        var result = title
+    private func computeTitle(title: String, bell: Bool, pwd: String?) -> String {
+        var titlePart = title
         if bell && ghostty.config.bellFeatures.contains(.title) {
-            result = "🔔 \(result)"
+            titlePart = "🔔 \(titlePart)"
         }
 
-        return result
+        guard let pwd, !pwd.isEmpty else { return titlePart }
+        let folder = URL(fileURLWithPath: pwd).lastPathComponent
+        let folderPart = folder.isEmpty ? "/" : folder
+
+        if title.isEmpty && !bell { return folderPart }
+        return "\(folderPart) * \(titlePart)"
     }
 
     private func titleDidChange(to: String) {
@@ -896,7 +903,8 @@ class BaseTerminalController: NSWindowController,
         if let titleOverride {
             window.title = computeTitle(
                 title: titleOverride,
-                bell: focusedSurface?.bell ?? false)
+                bell: focusedSurface?.bell ?? false,
+                pwd: focusedSurface?.pwd)
             return
         }
 

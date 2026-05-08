@@ -1105,6 +1105,7 @@ void ghostty_surface_text(ghostty_surface_t, const char*, uintptr_t);
 void ghostty_surface_set_background_color(ghostty_surface_t,
                                           const char*,
                                           uintptr_t);
+void ghostty_surface_write_text(ghostty_surface_t, const char*, uintptr_t);
 void ghostty_surface_preedit(ghostty_surface_t, const char*, uintptr_t);
 bool ghostty_surface_mouse_captured(ghostty_surface_t);
 bool ghostty_surface_mouse_button(ghostty_surface_t,

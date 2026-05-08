@@ -867,6 +867,29 @@ pub fn setBackgroundColor(
     }, .unlocked);
 }
 
+/// Write text directly to the PTY (the running shell/program), bypassing
+/// bracketed-paste wrapping that `textCallback` applies. This is for
+/// programmatic command injection (e.g. clicking a folder to `cd`) where
+/// a trailing CR must trigger shell execution rather than be captured as
+/// pasted content.
+pub fn writeText(self: *Surface, data: []const u8) !void {
+    if (data.len == 0) return;
+
+    // Always scroll to bottom on user-initiated input.
+    {
+        self.renderer_state.mutex.lock();
+        defer self.renderer_state.mutex.unlock();
+        self.scrollToBottom() catch |err| {
+            log.warn("error scrolling to bottom err={}", .{err});
+        };
+    }
+
+    self.queueIo(
+        try termio.Message.writeReq(self.alloc, data),
+        .unlocked,
+    );
+}
+
 /// Returns a mailbox that can be used to send messages to this surface.
 inline fn surfaceMailbox(self: *Surface) Mailbox {
     return .{

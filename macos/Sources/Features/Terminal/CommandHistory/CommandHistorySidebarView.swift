@@ -3,8 +3,9 @@ import SwiftUI
 struct CommandHistorySidebarView: View {
     @ObservedObject var store: CommandHistoryStore
 
-    /// Called when a command is clicked (left click) — sends command to terminal.
-    var onCommandClick: (String) -> Void
+    /// Called when a command is clicked. `execute` is true when Cmd or Shift is held
+    /// (run immediately); false for a plain click (print only, no newline).
+    var onCommandClick: (String, Bool) -> Void
 
     /// Called when a command is removed via right-click.
     var onCommandRemove: (String) -> Void
@@ -111,7 +112,7 @@ private class RightClickNSView: NSView {
 
 private struct CommandHistoryRow: View {
     let command: String
-    var onCommandClick: (String) -> Void
+    var onCommandClick: (String, Bool) -> Void
     var onRemove: () -> Void
 
     @State private var isHovered: Bool = false
@@ -125,7 +126,9 @@ private struct CommandHistoryRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
-                onCommandClick(command)
+                let mods = NSEvent.modifierFlags
+                let execute = mods.contains(.command) || mods.contains(.shift)
+                onCommandClick(command, execute)
             }
             .overlay(
                 RightClickHandler(onRightClick: { onRemove() })
