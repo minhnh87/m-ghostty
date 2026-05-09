@@ -825,7 +825,11 @@ extension TerminalWindow: TabTitleEditorDelegate {
         for targetWindow: NSWindow
     ) {
         guard let targetController = targetWindow.windowController as? BaseTerminalController else { return }
-        targetController.titleOverride = editedTitle.isEmpty ? nil : editedTitle
+        if editedTitle.isEmpty {
+            targetController.titleOverride = nil
+        } else {
+            targetController.titleOverride = editedTitle
+        }
     }
 
     func tabTitleEditor(

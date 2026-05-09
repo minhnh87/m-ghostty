@@ -249,6 +249,12 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 }
                 .keyboardShortcut("e", modifiers: .command)
                 .hidden()
+
+                if activeSidebar != nil {
+                    EscapeKeyHandler {
+                        activeSidebar = nil
+                    }
+                }
             }
             } // GeometryReader
         }
@@ -303,6 +309,65 @@ struct DebugBuildWarningView: View {
         .accessibilityAddTraits(.isStaticText)
         .onTapGesture {
             isPopover = true
+        }
+    }
+}
+
+// MARK: - Escape Key Handler
+
+private struct EscapeKeyHandler: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> EscapeKeyView {
+        EscapeKeyView(action: action)
+    }
+
+    func updateNSView(_ nsView: EscapeKeyView, context: Context) {
+        nsView.action = action
+    }
+
+    final class EscapeKeyView: NSView {
+        var action: () -> Void
+        private var monitor: Any?
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil && monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self else { return event }
+                    guard event.keyCode == 53 else { return event } // 53 = Escape
+                    guard self.window?.isKeyWindow == true else { return event }
+                    DispatchQueue.main.async { self.action() }
+                    return nil
+                }
+            }
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            if superview == nil, let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            return nil
         }
     }
 }

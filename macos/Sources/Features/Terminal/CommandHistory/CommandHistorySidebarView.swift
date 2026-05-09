@@ -10,9 +10,15 @@ struct CommandHistorySidebarView: View {
     /// Called when a command is removed via right-click.
     var onCommandRemove: (String) -> Void
 
+    private var visibleCommands: [String] {
+        store.commands
+            .filter { $0.trimmingCharacters(in: .whitespaces).count >= 10 }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            if store.commands.isEmpty {
+            if visibleCommands.isEmpty {
                 emptyState
             } else {
                 commandList
@@ -39,7 +45,7 @@ struct CommandHistorySidebarView: View {
     private var commandList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(store.commands, id: \.self) { command in
+                ForEach(visibleCommands, id: \.self) { command in
                     CommandHistoryRow(
                         command: command,
                         onCommandClick: onCommandClick,

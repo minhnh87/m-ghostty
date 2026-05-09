@@ -10,8 +10,16 @@ struct FolderSidebarView: View {
     var onFolderCmdClick: (String) -> Void
 
     private var sortedFolders: [String] {
-        store.folders.sorted {
-            ($0 as NSString).lastPathComponent.localizedCaseInsensitiveCompare(($1 as NSString).lastPathComponent) == .orderedAscending
+        store.folders.sorted { lhs, rhs in
+            let lhsParent = (lhs as NSString).deletingLastPathComponent
+            let rhsParent = (rhs as NSString).deletingLastPathComponent
+            let parentOrder = lhsParent.localizedCaseInsensitiveCompare(rhsParent)
+            if parentOrder != .orderedSame {
+                return parentOrder == .orderedAscending
+            }
+            let lhsName = (lhs as NSString).lastPathComponent
+            let rhsName = (rhs as NSString).lastPathComponent
+            return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
         }
     }
 

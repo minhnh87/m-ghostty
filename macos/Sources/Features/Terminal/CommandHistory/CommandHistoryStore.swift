@@ -14,6 +14,9 @@ class CommandHistoryStore: ObservableObject {
     }
 
     func addCommand(_ command: String) {
+        if command.trimmingCharacters(in: .whitespaces).count < 10 {
+            return
+        }
         if Self.ignoredPrefixes.contains(where: { command.hasPrefix($0) }) {
             return
         }

@@ -108,6 +108,32 @@ class BaseTerminalController: NSWindowController,
         didSet { applyTitleToWindow() }
     }
 
+    /// Color dot tags prepended to tab titles. Same folder yields the same color.
+    static let tabColorTags: [String] = ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣"]
+
+    /// FNV-1a 32-bit hash. Stable across launches, unlike Swift's `String.hashValue`.
+    private static func stableHash(_ s: String) -> UInt32 {
+        var h: UInt32 = 0x811c9dc5
+        for b in s.utf8 {
+            h ^= UInt32(b)
+            h &*= 0x01000193
+        }
+        return h
+    }
+
+    /// Picks a color tag deterministically from the folder name (last path component),
+    /// so two different paths sharing a folder name (e.g. multiple `m-ghostty` clones)
+    /// get the same color. Falls back to random when no pwd is available.
+    static func tabColorTag(forPwd pwd: String?) -> String {
+        if let pwd, !pwd.isEmpty {
+            let folder = URL(fileURLWithPath: pwd).lastPathComponent
+            let key = folder.isEmpty ? pwd : folder
+            let idx = Int(stableHash(key) % UInt32(tabColorTags.count))
+            return tabColorTags[idx]
+        }
+        return tabColorTags.randomElement() ?? "🔴"
+    }
+
     /// The last computed title from the focused surface (without the override).
     private var lastComputedTitle: String = "👻"
 
@@ -887,9 +913,10 @@ class BaseTerminalController: NSWindowController,
         guard let pwd, !pwd.isEmpty else { return titlePart }
         let folder = URL(fileURLWithPath: pwd).lastPathComponent
         let folderPart = folder.isEmpty ? "/" : folder
+        let colorTag = Self.tabColorTag(forPwd: pwd)
 
-        if title.isEmpty && !bell { return folderPart }
-        return "\(folderPart) * \(titlePart)"
+        if title.isEmpty && !bell { return "\(colorTag) \(folderPart)" }
+        return "\(colorTag) \(folderPart) * \(titlePart)"
     }
 
     private func titleDidChange(to: String) {
