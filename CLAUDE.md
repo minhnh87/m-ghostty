@@ -7,7 +7,7 @@
 4. If a task requires changes to more than 3 files, stop and break it into smaller tasks first.
 5. When there's a bug, start by writing a test that reproduces it, then fix it until the test passes.
 6. Every time I correct you, reflect on what you did wrong and come up with a plan to never make the same mistake again.
-
+7. Khi code xong 1 chức năng, build thành công, print câu lệnh mở app.
 
 ### Note
 Codex will review your output once you are done.
