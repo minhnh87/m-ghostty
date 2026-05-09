@@ -10,6 +10,7 @@ struct BottomToolbarView: View {
     var onSplitHorizontal: () -> Void
     var onSplitVertical: () -> Void
     var onPaste: () -> Void
+    var onToggleBrowser: () -> Void
 
     @State private var hoveredSwatch: String? = nil
 
@@ -71,6 +72,13 @@ struct BottomToolbarView: View {
                 systemImage: "doc.on.clipboard",
                 help: "Paste clipboard vào terminal",
                 action: onPaste
+            )
+
+            quickActionButton(
+                label: "Browser",
+                systemImage: "globe",
+                help: "Bật/tắt browser panel (Cmd+B)",
+                action: onToggleBrowser
             )
 
             quickActionButton(label: "Ctrl+C", systemImage: nil, help: "Send Ctrl+C (interrupt running process)", action: onSendCtrlC)
@@ -142,7 +150,8 @@ struct BottomToolbarView: View {
         onSendCtrlC: {},
         onSplitHorizontal: {},
         onSplitVertical: {},
-        onPaste: {}
+        onPaste: {},
+        onToggleBrowser: {}
     )
     .frame(width: 800)
     .background(Color.black)

@@ -74,10 +74,21 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     /// Which sidebar panel is currently visible (nil = all closed).
     @State private var activeSidebar: SidebarPanel? = nil
 
+    /// Browser panel width (nil = use 50% default). Session-only, not persisted.
+    @State private var browserWidth: CGFloat? = nil
+
     private enum SidebarPanel: CaseIterable {
         case commandHistory
         case sshProfiles
         case folders
+        case browser
+
+        /// Panels included in the Cmd+E cycle. Browser is excluded — it has its
+        /// own dedicated Cmd+B toggle to avoid pulling the heavier WKWebView
+        /// into the cycle.
+        static var cycleCases: [SidebarPanel] {
+            [.commandHistory, .sshProfiles, .folders]
+        }
     }
 
     // This seems like a crutch after switching from SwiftUI to AppKit lifecycle.
@@ -92,6 +103,15 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     private var pwdURL: URL? {
         guard let surfacePwd, surfacePwd != "" else { return nil }
         return URL(fileURLWithPath: surfacePwd)
+    }
+
+    /// Effective browser width with clamping. Default = 50% of total.
+    /// Clamp range keeps both terminal and browser at least `browserMinWidth` wide.
+    private func clampedBrowserWidth(total: CGFloat) -> CGFloat {
+        let raw = browserWidth ?? (total / 2)
+        let minW = browserMinWidth
+        let maxW = max(minW, total - minW)
+        return min(max(raw, minW), maxW)
     }
 
     var body: some View {
@@ -204,6 +224,18 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     .transition(.move(edge: .trailing))
                 }
 
+                // Browser panel (right side, 50/50 default, resizable)
+                if activeSidebar == .browser {
+                    BrowserResizeHandle(
+                        totalWidth: geometry.size.width,
+                        browserWidth: $browserWidth
+                    )
+
+                    BrowserPanelView()
+                        .frame(width: clampedBrowserWidth(total: geometry.size.width))
+                        .transition(.move(edge: .trailing))
+                }
+
             }
 
             BottomToolbarView(
@@ -224,6 +256,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 onPaste: {
                     guard let surfaceView = lastFocusedSurface?.value else { return }
                     surfaceView.paste(nil)
+                },
+                onToggleBrowser: {
+                    activeSidebar = (activeSidebar == .browser) ? nil : .browser
                 }
             )
             } // VStack
@@ -231,7 +266,8 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
             .background {
                 Button("") {
                     // Cycle: nil → commandHistory → sshProfiles → folders → nil
-                    let panels = SidebarPanel.allCases
+                    // Browser is intentionally excluded (toggled via Cmd+B).
+                    let panels = SidebarPanel.cycleCases
                     if let current = activeSidebar, let idx = panels.firstIndex(of: current) {
                         let nextIdx = panels.index(after: idx)
                         if nextIdx < panels.endIndex {
@@ -248,6 +284,13 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     }
                 }
                 .keyboardShortcut("e", modifiers: .command)
+                .hidden()
+
+                // Cmd+B toggles browser panel directly (not part of Cmd+E cycle)
+                Button("") {
+                    activeSidebar = (activeSidebar == .browser) ? nil : .browser
+                }
+                .keyboardShortcut("b", modifiers: .command)
                 .hidden()
 
                 if activeSidebar != nil {
@@ -369,5 +412,52 @@ private struct EscapeKeyHandler: NSViewRepresentable {
         override func hitTest(_ point: NSPoint) -> NSView? {
             return nil
         }
+    }
+}
+
+// MARK: - Browser Resize Handle
+
+/// Min width cho cả terminal và browser panel khi resize.
+fileprivate let browserMinWidth: CGFloat = 300
+
+/// Drag handle giữa terminal và browser panel. Width 4px, hiển thị divider 1px
+/// ở giữa, đổi cursor thành resizeLeftRight khi hover. Cập nhật `browserWidth`
+/// dạng "delta-from-current" để cảm giác kéo tự nhiên ở bất kỳ vị trí nào.
+private struct BrowserResizeHandle: View {
+    let totalWidth: CGFloat
+    @Binding var browserWidth: CGFloat?
+
+    @State private var dragStartWidth: CGFloat? = nil
+
+    private static let handleWidth: CGFloat = 4
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            Divider()
+        }
+        .frame(width: Self.handleWidth)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    let start = dragStartWidth ?? (browserWidth ?? (totalWidth / 2))
+                    if dragStartWidth == nil { dragStartWidth = start }
+                    let proposed = start - value.translation.width
+                    let minW = browserMinWidth
+                    let maxW = max(minW, totalWidth - minW)
+                    browserWidth = min(max(proposed, minW), maxW)
+                }
+                .onEnded { _ in
+                    dragStartWidth = nil
+                }
+        )
     }
 }
