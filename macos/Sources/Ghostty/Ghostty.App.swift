@@ -1374,6 +1374,14 @@ extension Ghostty {
                 guard let surfaceView = self.surfaceView(from: surface) else { return }
                 guard let title = String(cString: n.title!, encoding: .utf8) else { return }
                 guard let body = String(cString: n.body!, encoding: .utf8) else { return }
+
+                // Notify activity trackers (tab dot burst) regardless of whether
+                // the system notification will actually display.
+                NotificationCenter.default.post(
+                    name: Ghostty.Notification.ghosttyDesktopNotificationDidFire,
+                    object: surfaceView
+                )
+
                 showDesktopNotification(surfaceView, title: title, body: body)
 
             default:
@@ -1416,6 +1424,14 @@ extension Ghostty {
             case GHOSTTY_TARGET_SURFACE:
                 guard let surface = target.target.surface else { return }
                 guard let surfaceView = self.surfaceView(from: surface) else { return }
+
+                // Notify trackers (tab dot indicator) unconditionally before any
+                // config-based filtering — they need to clear "running" state
+                // even when the user has notify-on-finish disabled.
+                NotificationCenter.default.post(
+                    name: Ghostty.Notification.ghosttyCommandFinishedAny,
+                    object: surfaceView
+                )
 
                 // Determine if we even care about command finish notifications
                 guard let config = (NSApplication.shared.delegate as? AppDelegate)?.ghostty.config else { return }

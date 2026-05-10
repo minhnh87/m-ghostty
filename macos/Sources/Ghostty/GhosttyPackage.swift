@@ -452,6 +452,15 @@ extension Ghostty.Notification {
     static let ghosttyCommandStarted = Notification.Name("com.mitchellh.ghostty.commandStarted")
     static let CommandLineKey = ghosttyCommandStarted.rawValue + ".cmdline"
 
+    /// Posted unconditionally when a command finishes, regardless of notify config.
+    /// Object is the surface view. Used by activity trackers (tab dot indicator).
+    static let ghosttyCommandFinishedAny = Notification.Name("com.mitchellh.ghostty.commandFinishedAny")
+
+    /// Posted when a surface fires a desktop notification (OSC 9 / 777),
+    /// regardless of whether the system notification was actually shown.
+    /// Object is the surface view.
+    static let ghosttyDesktopNotificationDidFire = Notification.Name("com.mitchellh.ghostty.desktopNotificationDidFire")
+
     /// Notification posted when a command is captured from keyboard input (fallback for SSH).
     static let ghosttyInputCommandCaptured = Notification.Name("com.mitchellh.ghostty.inputCommandCaptured")
     static let InputCommandKey = ghosttyInputCommandCaptured.rawValue + ".command"

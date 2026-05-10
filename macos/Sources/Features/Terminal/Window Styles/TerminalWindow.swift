@@ -24,9 +24,13 @@ class TerminalWindow: NSWindow {
     /// Update notification UI in titlebar
     private let updateAccessory = NSTitlebarAccessoryViewController()
 
-    /// Visual indicator that mirrors the selected tab color.
+    /// Tracks running command + OSC 9 attention events for surfaces in this window
+    /// to drive the tab dot indicator's pulse / burst animations.
+    private let activityTracker = TerminalActivityTracker()
+
+    /// Visual indicator that mirrors the selected tab color and surface activity.
     private lazy var tabColorIndicator: NSHostingView<TabColorIndicatorView> = {
-        let view = NSHostingView(rootView: TabColorIndicatorView(tabColor: tabColor))
+        let view = NSHostingView(rootView: TabColorIndicatorView(tracker: activityTracker))
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
@@ -63,7 +67,7 @@ class TerminalWindow: NSWindow {
     var tabColor: TerminalTabColor = .none {
         didSet {
             guard tabColor != oldValue else { return }
-            tabColorIndicator.rootView = TabColorIndicatorView(tabColor: tabColor)
+            activityTracker.tabColor = tabColor
             invalidateRestorableState()
         }
     }
@@ -156,11 +160,15 @@ class TerminalWindow: NSWindow {
             }
         }
 
+        // Wire up the activity tracker now that the window is fully formed.
+        // Mirror the initial tab color so the indicator renders the right state
+        // on first paint.
+        activityTracker.tabColor = tabColor
+        activityTracker.attach(window: self)
+
         // Setup the accessory view for tabs that shows our keyboard shortcuts,
         // zoomed state, etc. Note I tried to use SwiftUI here but ran into issues
         // where buttons were not clickable.
-        tabColorIndicator.rootView = TabColorIndicatorView(tabColor: tabColor)
-
         let stackView = NSStackView()
         stackView.orientation = .horizontal
         stackView.setHuggingPriority(.defaultHigh, for: .horizontal)
@@ -680,22 +688,93 @@ extension TerminalWindow {
 
 }
 
-/// A small circle indicator displayed in the tab accessory view that shows
-/// the user-assigned tab color. When no color is set, the view is hidden.
+/// A small circle indicator displayed in the tab accessory view. Shows the
+/// user-assigned tab color and animates to reflect surface activity:
+/// - Breathing pulse while a long-running shell command is active.
+/// - One-shot scale burst when a surface emits an OSC 9 desktop notification.
+///
+/// When no tab color is set and there's no activity, the dot is hidden. When
+/// there's activity but no user color, the dot uses the system accent color so
+/// the signal is still visible.
 private struct TabColorIndicatorView: View {
-    /// The tab color to display.
-    let tabColor: TerminalTabColor
+    @ObservedObject var tracker: TerminalActivityTracker
+
+    /// Animated opacity driven by the running pulse. 1.0 when idle.
+    @State private var pulseOpacity: Double = 1.0
+    /// Animated scale driven by OSC 9 bursts. 1.0 when idle.
+    @State private var burstScale: CGFloat = 1.0
+    /// Last `attentionTick` we played a burst for.
+    @State private var lastBurstTick: Int = 0
+
+    /// Pulse cycle period (full cycle = breath in + breath out).
+    private static let pulsePeriod: TimeInterval = 0.7
+    /// Burst attack and decay durations.
+    private static let burstAttack: TimeInterval = 0.18
+    private static let burstDecay: TimeInterval = 0.22
+    /// Peak scale for the burst.
+    private static let burstPeak: CGFloat = 1.55
 
     var body: some View {
-        if let color = tabColor.displayColor {
-            Circle()
-                .fill(Color(color))
-                .frame(width: 6, height: 6)
+        Circle()
+            .fill(fillColor)
+            .frame(width: 9, height: 9)
+            .scaleEffect(burstScale)
+            .opacity(visible ? pulseOpacity : 0.0)
+            .animation(.easeInOut(duration: 0.2), value: visible)
+            .onAppear { syncPulse() }
+            .onChange(of: tracker.isRunning) { _ in syncPulse() }
+            .onChange(of: tracker.attentionTick) { tick in fireBurst(tick: tick) }
+    }
+
+    /// Whether the dot should be drawn at all.
+    private var visible: Bool {
+        tracker.tabColor != .none || tracker.isRunning || burstScale != 1.0
+    }
+
+    /// Color used to fill the dot. Falls back to system orange when the user
+    /// hasn't picked a tab color but there's activity to show — chosen for
+    /// high visibility against most title bar backgrounds.
+    private var fillColor: Color {
+        if let nsColor = tracker.tabColor.displayColor {
+            return Color(nsColor)
+        }
+        return Color(NSColor.systemOrange)
+    }
+
+    private func syncPulse() {
+        if tracker.isRunning {
+            // Snap to peak then start the auto-reversing repeat. Snapping
+            // ensures the breath always begins at full opacity for a clean
+            // entry, regardless of where the previous animation left off.
+            pulseOpacity = 1.0
+            withAnimation(
+                .easeInOut(duration: Self.pulsePeriod)
+                .repeatForever(autoreverses: true)
+            ) {
+                pulseOpacity = 0.4
+            }
         } else {
-            Circle()
-                .fill(Color.clear)
-                .frame(width: 6, height: 6)
-                .hidden()
+            withAnimation(.easeInOut(duration: 0.25)) {
+                pulseOpacity = 1.0
+            }
+        }
+    }
+
+    private func fireBurst(tick: Int) {
+        // Guard against initial onChange firing for the same value (e.g. on
+        // reattach) and against rapid repeated bursts overlapping.
+        guard tick != lastBurstTick else { return }
+        lastBurstTick = tick
+
+        withAnimation(.easeOut(duration: Self.burstAttack)) {
+            burstScale = Self.burstPeak
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.burstAttack
+        ) {
+            withAnimation(.easeIn(duration: Self.burstDecay)) {
+                burstScale = 1.0
+            }
         }
     }
 }
