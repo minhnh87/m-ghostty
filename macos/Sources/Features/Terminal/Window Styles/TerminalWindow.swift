@@ -699,8 +699,8 @@ extension TerminalWindow {
 private struct TabColorIndicatorView: View {
     @ObservedObject var tracker: TerminalActivityTracker
 
-    /// Animated opacity driven by the running pulse. 1.0 when idle.
-    @State private var pulseOpacity: Double = 1.0
+    /// Animated scale driven by the running pulse. 1.0 when idle.
+    @State private var pulseScale: CGFloat = 1.0
     /// Animated scale driven by OSC 9 bursts. 1.0 when idle.
     @State private var burstScale: CGFloat = 1.0
     /// Last `attentionTick` we played a burst for.
@@ -708,6 +708,8 @@ private struct TabColorIndicatorView: View {
 
     /// Pulse cycle period (full cycle = breath in + breath out).
     private static let pulsePeriod: TimeInterval = 0.7
+    /// Peak scale for the breathing pulse.
+    private static let pulsePeak: CGFloat = 1.5
     /// Burst attack and decay durations.
     private static let burstAttack: TimeInterval = 0.18
     private static let burstDecay: TimeInterval = 0.22
@@ -718,8 +720,8 @@ private struct TabColorIndicatorView: View {
         Circle()
             .fill(fillColor)
             .frame(width: 9, height: 9)
-            .scaleEffect(burstScale)
-            .opacity(visible ? pulseOpacity : 0.0)
+            .scaleEffect(burstScale * pulseScale)
+            .opacity(visible ? 1.0 : 0.0)
             .animation(.easeInOut(duration: 0.2), value: visible)
             .onAppear { syncPulse() }
             .onChange(of: tracker.isRunning) { _ in syncPulse() }
@@ -728,34 +730,34 @@ private struct TabColorIndicatorView: View {
 
     /// Whether the dot should be drawn at all.
     private var visible: Bool {
-        tracker.tabColor != .none || tracker.isRunning || burstScale != 1.0
+        tracker.tabColor != .none || tracker.isRunning || burstScale != 1.0 || pulseScale != 1.0
     }
 
-    /// Color used to fill the dot. Falls back to system orange when the user
+    /// Color used to fill the dot. Falls back to system blue when the user
     /// hasn't picked a tab color but there's activity to show — chosen for
     /// high visibility against most title bar backgrounds.
     private var fillColor: Color {
         if let nsColor = tracker.tabColor.displayColor {
             return Color(nsColor)
         }
-        return Color(NSColor.systemOrange)
+        return Color(NSColor.systemBlue)
     }
 
     private func syncPulse() {
         if tracker.isRunning {
-            // Snap to peak then start the auto-reversing repeat. Snapping
-            // ensures the breath always begins at full opacity for a clean
+            // Snap to base then start the auto-reversing repeat. Snapping
+            // ensures the breath always begins at base scale for a clean
             // entry, regardless of where the previous animation left off.
-            pulseOpacity = 1.0
+            pulseScale = 1.0
             withAnimation(
                 .easeInOut(duration: Self.pulsePeriod)
                 .repeatForever(autoreverses: true)
             ) {
-                pulseOpacity = 0.4
+                pulseScale = Self.pulsePeak
             }
         } else {
             withAnimation(.easeInOut(duration: 0.25)) {
-                pulseOpacity = 1.0
+                pulseScale = 1.0
             }
         }
     }

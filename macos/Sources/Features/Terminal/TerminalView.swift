@@ -114,6 +114,24 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         return min(max(raw, minW), maxW)
     }
 
+    /// Inject `cd "<pwd>"` của tab liền kề bên trái vào surface đang focus.
+    /// Im lặng nếu: không có surface focus, không có tabGroup, đang ở leftmost,
+    /// hoặc tab trái không có pwd.
+    private func cdToLeftTabPath() {
+        guard let currentSurface = lastFocusedSurface?.value,
+              let currentWindow = currentSurface.window,
+              let tabGroup = currentWindow.tabGroup else { return }
+        let windows = tabGroup.windows
+        guard let currentIndex = windows.firstIndex(of: currentWindow),
+              currentIndex > 0 else { return }
+        let leftWindow = windows[currentIndex - 1]
+        guard let leftController = leftWindow.windowController as? TerminalController,
+              let leftPwd = leftController.focusedSurface?.pwd,
+              !leftPwd.isEmpty else { return }
+        let escaped = leftPwd.replacingOccurrences(of: "\"", with: "\\\"")
+        currentSurface.surfaceModel?.writeText("cd \"\(escaped)\"\r")
+    }
+
     var body: some View {
         switch ghostty.readiness {
         case .loading:
@@ -291,6 +309,14 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     activeSidebar = (activeSidebar == .browser) ? nil : .browser
                 }
                 .keyboardShortcut("b", modifiers: .command)
+                .hidden()
+
+                // Cmd+L: cd vào pwd của tab liền kề bên trái. Im lặng nếu là
+                // tab leftmost hoặc tab trái không có pwd.
+                Button("") {
+                    cdToLeftTabPath()
+                }
+                .keyboardShortcut("l", modifiers: .command)
                 .hidden()
 
                 if activeSidebar != nil {
