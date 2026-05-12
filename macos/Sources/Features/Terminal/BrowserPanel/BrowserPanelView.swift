@@ -8,6 +8,12 @@ import WebKit
 struct BrowserPanelView: View {
     @AppStorage("browserPanelLastURL") private var lastURL: String = "https://www.google.com"
 
+    /// True khi panel đang ở chế độ expanded (≥80% chiều rộng app). Quyết định
+    /// icon của nút Expand/Collapse.
+    let isExpanded: Bool
+    /// Caller chuyển đổi giữa 90% (expanded) và 50% (collapsed) và persist.
+    let onToggleExpand: () -> Void
+
     @State private var urlString: String = ""
     @State private var loadURL: URL? = nil
     @State private var reloadTrigger: Int = 0
@@ -33,6 +39,21 @@ struct BrowserPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Reload")
+
+                Button(action: onToggleExpand) {
+                    Image(systemName: isExpanded ? "chevron.right.2" : "chevron.left.2")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(red: 0.85, green: 0.85, blue: 0.85))
+                        .frame(width: 22, height: 22)
+                        .background(Color(red: 0.16, green: 0.16, blue: 0.16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Collapse (50%)" : "Expand (90%)")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)

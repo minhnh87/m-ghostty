@@ -74,8 +74,13 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     /// Which sidebar panel is currently visible (nil = all closed).
     @State private var activeSidebar: SidebarPanel? = nil
 
-    /// Browser panel width (nil = use 50% default). Session-only, not persisted.
+    /// Browser panel width trong session hiện tại (nil = chưa drag lần nào,
+    /// dùng `browserWidthStored` hoặc 50%).
     @State private var browserWidth: CGFloat? = nil
+
+    /// Browser panel width được persist qua các session. 0 = chưa từng set,
+    /// fallback về 50%. Chỉ ghi khi user kết thúc drag (không ghi liên tục).
+    @AppStorage("browserPanelWidth") private var browserWidthStored: Double = 0
 
     private enum SidebarPanel: CaseIterable {
         case commandHistory
@@ -105,10 +110,16 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         return URL(fileURLWithPath: surfacePwd)
     }
 
+    /// Default width khi user chưa drag trong session này: lấy từ AppStorage
+    /// nếu đã từng save, ngược lại 50%.
+    private func defaultBrowserWidth(total: CGFloat) -> CGFloat {
+        browserWidthStored > 0 ? CGFloat(browserWidthStored) : total / 2
+    }
+
     /// Effective browser width with clamping. Default = 50% of total.
     /// Clamp range keeps both terminal and browser at least `browserMinWidth` wide.
     private func clampedBrowserWidth(total: CGFloat) -> CGFloat {
-        let raw = browserWidth ?? (total / 2)
+        let raw = browserWidth ?? defaultBrowserWidth(total: total)
         let minW = browserMinWidth
         let maxW = max(minW, total - minW)
         return min(max(raw, minW), maxW)
@@ -244,13 +255,28 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
                 // Browser panel (right side, 50/50 default, resizable)
                 if activeSidebar == .browser {
+                    let total = geometry.size.width
+                    let effective = clampedBrowserWidth(total: total)
+                    let isExpanded = total > 0 && effective >= total * 0.8
+
                     BrowserResizeHandle(
-                        totalWidth: geometry.size.width,
-                        browserWidth: $browserWidth
+                        totalWidth: total,
+                        defaultWidth: defaultBrowserWidth(total: total),
+                        browserWidth: $browserWidth,
+                        onDragEnd: { width in
+                            browserWidthStored = Double(width)
+                        }
                     )
 
-                    BrowserPanelView()
-                        .frame(width: clampedBrowserWidth(total: geometry.size.width))
+                    BrowserPanelView(
+                        isExpanded: isExpanded,
+                        onToggleExpand: {
+                            let target = isExpanded ? total * 0.5 : total * 0.9
+                            browserWidth = target
+                            browserWidthStored = Double(target)
+                        }
+                    )
+                        .frame(width: effective)
                         .transition(.move(edge: .trailing))
                 }
 
@@ -446,25 +472,49 @@ private struct EscapeKeyHandler: NSViewRepresentable {
 /// Min width cho cả terminal và browser panel khi resize.
 fileprivate let browserMinWidth: CGFloat = 300
 
-/// Drag handle giữa terminal và browser panel. Width 4px, hiển thị divider 1px
-/// ở giữa, đổi cursor thành resizeLeftRight khi hover. Cập nhật `browserWidth`
-/// dạng "delta-from-current" để cảm giác kéo tự nhiên ở bất kỳ vị trí nào.
+/// Drag handle giữa terminal và browser panel. Hit-area 8px (dễ hover/drag),
+/// đường nhìn 2px màu burnt-brown ở giữa; khi hover hiện icon mũi tên 2 chiều
+/// để báo hiệu có thể kéo. Đổi cursor thành resizeLeftRight khi hover.
+/// `onDragEnd` được gọi 1 lần khi drag kết thúc → caller dùng để persist size.
 private struct BrowserResizeHandle: View {
     let totalWidth: CGFloat
+    let defaultWidth: CGFloat
     @Binding var browserWidth: CGFloat?
+    let onDragEnd: (CGFloat) -> Void
 
     @State private var dragStartWidth: CGFloat? = nil
+    @State private var isHovering: Bool = false
 
-    private static let handleWidth: CGFloat = 4
+    private static let handleWidth: CGFloat = 8
+    private static let lineWidth: CGFloat = 2
+
+    /// #5f3300cf — burnt-brown semi-transparent.
+    private static let borderColor = Color(
+        red: 0x5f / 255.0,
+        green: 0x33 / 255.0,
+        blue: 0x00 / 255.0,
+        opacity: 0xcf / 255.0
+    )
 
     var body: some View {
         ZStack {
             Color.clear
-            Divider()
+            Rectangle()
+                .fill(Self.borderColor)
+                .frame(width: Self.lineWidth)
+
+            if isHovering {
+                Image(systemName: "arrow.left.and.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Color.white.opacity(0.9))
+                    .frame(width: 20, height: 20)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: Self.handleWidth)
         .contentShape(Rectangle())
         .onHover { hovering in
+            isHovering = hovering
             if hovering {
                 NSCursor.resizeLeftRight.push()
             } else {
@@ -474,7 +524,7 @@ private struct BrowserResizeHandle: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    let start = dragStartWidth ?? (browserWidth ?? (totalWidth / 2))
+                    let start = dragStartWidth ?? (browserWidth ?? defaultWidth)
                     if dragStartWidth == nil { dragStartWidth = start }
                     let proposed = start - value.translation.width
                     let minW = browserMinWidth
@@ -483,6 +533,9 @@ private struct BrowserResizeHandle: View {
                 }
                 .onEnded { _ in
                     dragStartWidth = nil
+                    if let w = browserWidth {
+                        onDragEnd(w)
+                    }
                 }
         )
     }
