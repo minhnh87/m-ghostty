@@ -4,8 +4,8 @@ import WebKit
 /// Browser panel hiển thị bên cạnh terminal, hỗ trợ nhiều tab.
 /// Mỗi tab giữ một WKWebView riêng nên scroll/state được preserve khi switch tab.
 /// Khi panel được bật lên, luôn khởi tạo 2 tab default:
-///   1) `http://127.0.0.1:4444/?path={pwd của terminal đang focus}`
-///   2) `http://localhost:3001/`
+///   1) `http://localhost:3001/?f={pwd của terminal đang focus}`
+///   2) `http://127.0.0.1:4444/?path={pwd của terminal đang focus}`
 struct BrowserPanelView: View {
     @StateObject private var tabsModel: BrowserTabsModel
 
@@ -78,11 +78,11 @@ private struct BrowserActiveTabView: View {
                 .buttonStyle(.plain)
                 .help(isExpanded ? "Collapse (50%)" : "Expand (100%)")
                 
-                bookmarkButton(label: "1", help: "Open localhost:4444 with current path") {
+                bookmarkButton(label: "1", help: "Open localhost:3001 with current folder") {
                     tab.load(BrowserBookmarks.bookmark1(pwd: pwdProvider()))
                 }
-                bookmarkButton(label: "2", help: "Open localhost:3001") {
-                    tab.load(BrowserBookmarks.bookmark2)
+                bookmarkButton(label: "2", help: "Open localhost:4444 with current path") {
+                    tab.load(BrowserBookmarks.bookmark2(pwd: pwdProvider()))
                 }
 
                 

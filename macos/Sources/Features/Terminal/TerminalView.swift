@@ -204,6 +204,40 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     }
                 }
                 .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
+                .overlay(alignment: .trailing) {
+                    // Browser panel overlay: nổi lên trên terminal area, không co
+                    // terminal. Phần terminal không bị overlay che vẫn nhận input
+                    // bình thường (SwiftUI hit-test ưu tiên overlay).
+                    if activeSidebar == .browser {
+                        let total = geometry.size.width
+                        let effective = clampedBrowserWidth(total: total)
+                        let isExpanded = total > 0 && effective >= total * 0.8
+
+                        HStack(spacing: 0) {
+                            BrowserResizeHandle(
+                                totalWidth: total,
+                                defaultWidth: defaultBrowserWidth(total: total),
+                                browserWidth: $browserWidth,
+                                onDragEnd: { width in
+                                    browserWidthStored = Double(width)
+                                }
+                            )
+
+                            BrowserPanelView(
+                                isExpanded: isExpanded,
+                                onToggleExpand: {
+                                    let target = isExpanded ? total * 0.5 : total
+                                    browserWidth = target
+                                    browserWidthStored = Double(target)
+                                },
+                                pwdProvider: { surfacePwd }
+                            )
+                            .frame(width: effective)
+                            .shadow(color: .black.opacity(0.35), radius: 10, x: -4, y: 0)
+                        }
+                        .transition(.move(edge: .trailing))
+                    }
+                }
 
                 // Command history right sidebar
                 if activeSidebar == .commandHistory {
@@ -250,34 +284,6 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     )
                     .frame(width: geometry.size.width / 3)
                     .transition(.move(edge: .trailing))
-                }
-
-                // Browser panel (right side, 50/50 default, resizable)
-                if activeSidebar == .browser {
-                    let total = geometry.size.width
-                    let effective = clampedBrowserWidth(total: total)
-                    let isExpanded = total > 0 && effective >= total * 0.8
-
-                    BrowserResizeHandle(
-                        totalWidth: total,
-                        defaultWidth: defaultBrowserWidth(total: total),
-                        browserWidth: $browserWidth,
-                        onDragEnd: { width in
-                            browserWidthStored = Double(width)
-                        }
-                    )
-
-                    BrowserPanelView(
-                        isExpanded: isExpanded,
-                        onToggleExpand: {
-                            let target = isExpanded ? total * 0.5 : total
-                            browserWidth = target
-                            browserWidthStored = Double(target)
-                        },
-                        pwdProvider: { surfacePwd }
-                    )
-                        .frame(width: effective)
-                        .transition(.move(edge: .trailing))
                 }
 
             }
@@ -345,7 +351,8 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 .keyboardShortcut("l", modifiers: .command)
                 .hidden()
 
-                if activeSidebar != nil {
+                // Esc đóng panel — nhưng bỏ qua browser (browser chỉ đóng bằng Cmd+B).
+                if activeSidebar != nil && activeSidebar != .browser {
                     EscapeKeyHandler {
                         activeSidebar = nil
                     }

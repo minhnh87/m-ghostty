@@ -1,19 +1,24 @@
 import SwiftUI
 import WebKit
 
-/// 2 bookmarks cứng sẵn cho Browser panel.
-/// Bookmark "1" cần `pwd` (working directory của terminal đang focus) để gắn
-/// vào query `?path=...`. Bookmark "2" là URL tĩnh.
+/// 2 bookmarks cứng sẵn cho Browser panel. Cả 2 đều nhận `pwd` (working
+/// directory của terminal đang focus) và gắn vào query với key khác nhau.
 enum BrowserBookmarks {
-    static let bookmark2: String = "http://localhost:3001/"
-
-    /// Build URL bookmark "1" với pwd hiện tại. Path được percent-encode an toàn
-    /// qua `.urlQueryAllowed` (giữ '/' không encode vì hợp lệ trong query).
-    /// Nếu `pwd` nil hoặc rỗng, fallback về home directory.
+    /// Bookmark "1": localhost:3001 với param `f={pwd}` (current folder).
     static func bookmark1(pwd: String?) -> String {
+        return "http://localhost:3001/?f=\(encodedPWD(pwd))"
+    }
+
+    /// Bookmark "2": localhost:4444 với param `path={pwd}`.
+    static func bookmark2(pwd: String?) -> String {
+        return "http://127.0.0.1:4444/?path=\(encodedPWD(pwd))"
+    }
+
+    /// Percent-encode qua `.urlQueryAllowed` (giữ '/' không encode vì hợp lệ
+    /// trong query). Fallback về home directory nếu `pwd` nil hoặc rỗng.
+    private static func encodedPWD(_ pwd: String?) -> String {
         let raw = (pwd?.isEmpty == false ? pwd! : NSHomeDirectory())
-        let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? raw
-        return "http://127.0.0.1:4444/?path=\(encoded)"
+        return raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? raw
     }
 }
 
@@ -83,7 +88,7 @@ final class BrowserTabsModel: ObservableObject {
 
     init(initialPWD: String?) {
         let tab1 = BrowserTab(urlString: BrowserBookmarks.bookmark1(pwd: initialPWD))
-        let tab2 = BrowserTab(urlString: BrowserBookmarks.bookmark2)
+        let tab2 = BrowserTab(urlString: BrowserBookmarks.bookmark2(pwd: initialPWD))
         tabs = [tab1, tab2]
         activeTabID = tab1.id
     }
