@@ -92,7 +92,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         /// own dedicated Cmd+B toggle to avoid pulling the heavier WKWebView
         /// into the cycle.
         static var cycleCases: [SidebarPanel] {
-            [.commandHistory, .sshProfiles, .folders]
+            [.folders, .commandHistory, .sshProfiles]
         }
     }
 
@@ -117,12 +117,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     }
 
     /// Effective browser width with clamping. Default = 50% of total.
-    /// Clamp range keeps both terminal and browser at least `browserMinWidth` wide.
+    /// Chỉ defensive clamp về `[0, total]`. Range hợp lệ khi drag (1–99%) do
+    /// `BrowserResizeHandle` quyết định; expand button có thể set tới `total`.
     private func clampedBrowserWidth(total: CGFloat) -> CGFloat {
         let raw = browserWidth ?? defaultBrowserWidth(total: total)
-        let minW = browserMinWidth
-        let maxW = max(minW, total - minW)
-        return min(max(raw, minW), maxW)
+        return min(max(raw, 0), total)
     }
 
     /// Inject `cd "<pwd>"` của tab liền kề bên trái vào surface đang focus.
@@ -271,10 +270,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     BrowserPanelView(
                         isExpanded: isExpanded,
                         onToggleExpand: {
-                            let target = isExpanded ? total * 0.5 : total * 0.9
+                            let target = isExpanded ? total * 0.5 : total
                             browserWidth = target
                             browserWidthStored = Double(target)
-                        }
+                        },
+                        pwdProvider: { surfacePwd }
                     )
                         .frame(width: effective)
                         .transition(.move(edge: .trailing))
@@ -309,7 +309,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
             .animation(.easeInOut(duration: 0.2), value: activeSidebar)
             .background {
                 Button("") {
-                    // Cycle: nil → commandHistory → sshProfiles → folders → nil
+                    // Cycle: nil → folders → commandHistory → sshProfiles → nil
                     // Browser is intentionally excluded (toggled via Cmd+B).
                     let panels = SidebarPanel.cycleCases
                     if let current = activeSidebar, let idx = panels.firstIndex(of: current) {
@@ -469,9 +469,6 @@ private struct EscapeKeyHandler: NSViewRepresentable {
 
 // MARK: - Browser Resize Handle
 
-/// Min width cho cả terminal và browser panel khi resize.
-fileprivate let browserMinWidth: CGFloat = 300
-
 /// Drag handle giữa terminal và browser panel. Hit-area 8px (dễ hover/drag),
 /// đường nhìn 2px màu burnt-brown ở giữa; khi hover hiện icon mũi tên 2 chiều
 /// để báo hiệu có thể kéo. Đổi cursor thành resizeLeftRight khi hover.
@@ -527,8 +524,8 @@ private struct BrowserResizeHandle: View {
                     let start = dragStartWidth ?? (browserWidth ?? defaultWidth)
                     if dragStartWidth == nil { dragStartWidth = start }
                     let proposed = start - value.translation.width
-                    let minW = browserMinWidth
-                    let maxW = max(minW, totalWidth - minW)
+                    let minW = totalWidth * 0.01
+                    let maxW = max(minW, totalWidth * 0.99)
                     browserWidth = min(max(proposed, minW), maxW)
                 }
                 .onEnded { _ in
