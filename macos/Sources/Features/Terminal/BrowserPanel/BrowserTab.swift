@@ -4,9 +4,10 @@ import WebKit
 /// 2 bookmarks cứng sẵn cho Browser panel. Cả 2 đều nhận `pwd` (working
 /// directory của terminal đang focus) và gắn vào query với key khác nhau.
 enum BrowserBookmarks {
-    /// Bookmark "1": localhost:3001 với param `f={pwd}` (current folder).
+    /// Bookmark "1": localhost:3001 với param `f={pwd}` (current folder),
+    /// kèm `theme=dark` và `zoom=90` cố định.
     static func bookmark1(pwd: String?) -> String {
-        return "http://localhost:3001/?f=\(encodedPWD(pwd))"
+        return "http://localhost:3001/?f=\(encodedPWD(pwd))&theme=dark&zoom=90"
     }
 
     /// Bookmark "2": localhost:4444 với param `path={pwd}`.

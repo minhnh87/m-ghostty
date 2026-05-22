@@ -211,7 +211,6 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     if activeSidebar == .browser {
                         let total = geometry.size.width
                         let effective = clampedBrowserWidth(total: total)
-                        let isExpanded = total > 0 && effective >= total * 0.8
 
                         HStack(spacing: 0) {
                             BrowserResizeHandle(
@@ -224,9 +223,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                             )
 
                             BrowserPanelView(
-                                isExpanded: isExpanded,
-                                onToggleExpand: {
-                                    let target = isExpanded ? total * 0.5 : total
+                                totalWidth: total,
+                                currentWidth: effective,
+                                onSetWidth: { target in
                                     browserWidth = target
                                     browserWidthStored = Double(target)
                                 },
