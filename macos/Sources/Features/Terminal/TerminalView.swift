@@ -74,23 +74,19 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     /// Which sidebar panel is currently visible (nil = all closed).
     @State private var activeSidebar: SidebarPanel? = nil
 
-    /// Browser panel width trong session hiện tại (nil = chưa drag lần nào,
-    /// dùng `browserWidthStored` hoặc 50%).
-    @State private var browserWidth: CGFloat? = nil
-
-    /// Browser panel width được persist qua các session. 0 = chưa từng set,
-    /// fallback về 50%. Chỉ ghi khi user kết thúc drag (không ghi liên tục).
-    @AppStorage("browserPanelWidth") private var browserWidthStored: Double = 0
+    /// Khi non-nil, leaf có id này sẽ render BrowserPanelView thay vì terminal.
+    /// Anchor cố định vào leaf đang focus tại thời điểm bật Cmd+B; user switch
+    /// focus sang pane khác KHÔNG di chuyển browser. Cleared khi toggle off
+    /// hoặc khi anchored leaf bị remove khỏi tree.
+    @State private var browserAnchoredSurfaceID: Ghostty.SurfaceView.ID? = nil
 
     private enum SidebarPanel: CaseIterable {
         case commandHistory
         case sshProfiles
         case folders
-        case browser
 
-        /// Panels included in the Cmd+E cycle. Browser is excluded — it has its
-        /// own dedicated Cmd+B toggle to avoid pulling the heavier WKWebView
-        /// into the cycle.
+        /// All cases are part of the Cmd+E cycle. Browser is no longer a sidebar
+        /// — nó anchor vào focused split leaf và toggle qua Cmd+B.
         static var cycleCases: [SidebarPanel] {
             [.folders, .commandHistory, .sshProfiles]
         }
@@ -110,18 +106,23 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         return URL(fileURLWithPath: surfacePwd)
     }
 
-    /// Default width khi user chưa drag trong session này: lấy từ AppStorage
-    /// nếu đã từng save, ngược lại 50%.
-    private func defaultBrowserWidth(total: CGFloat) -> CGFloat {
-        browserWidthStored > 0 ? CGFloat(browserWidthStored) : total / 2
+    /// Toggle browser anchor. Nếu anchor đang trỏ vào leaf hợp lệ → clear (off).
+    /// Ngược lại (chưa set hoặc anchor stale do leaf bị remove) → set vào
+    /// focused surface (fallback last-focused). No-op nếu không có surface nào
+    /// để anchor vào.
+    private func toggleBrowserAnchor() {
+        if let id = browserAnchoredSurfaceID, viewModel.surfaceTree.find(id: id) != nil {
+            browserAnchoredSurfaceID = nil
+        } else if let id = (focusedSurface ?? lastFocusedSurface?.value)?.id {
+            browserAnchoredSurfaceID = id
+        }
     }
 
-    /// Effective browser width with clamping. Default = 50% of total.
-    /// Chỉ defensive clamp về `[0, total]`. Range hợp lệ khi drag (1–99%) do
-    /// `BrowserResizeHandle` quyết định; expand button có thể set tới `total`.
-    private func clampedBrowserWidth(total: CGFloat) -> CGFloat {
-        let raw = browserWidth ?? defaultBrowserWidth(total: total)
-        return min(max(raw, 0), total)
+    /// Anchor đã được validate đối với surfaceTree hiện tại. Nếu leaf gốc đã
+    /// bị remove thì trả nil để view không cố render browser vào id stale.
+    private var effectiveBrowserAnchor: Ghostty.SurfaceView.ID? {
+        guard let id = browserAnchoredSurfaceID else { return nil }
+        return viewModel.surfaceTree.find(id: id) != nil ? id : nil
     }
 
     /// Inject `cd "<pwd>"` của tab liền kề bên trái vào surface đang focus.
@@ -162,7 +163,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
                         TerminalSplitTreeView(
                             tree: viewModel.surfaceTree,
-                            action: { delegate?.performSplitAction($0) })
+                            action: { delegate?.performSplitAction($0) },
+                            browserAnchoredSurfaceID: effectiveBrowserAnchor,
+                            pwdProvider: { surfacePwd })
                             .environmentObject(ghostty)
                             .ghosttyLastFocusedSurface(lastFocusedSurface)
                             .focused($focused)
@@ -204,39 +207,6 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     }
                 }
                 .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude)
-                .overlay(alignment: .trailing) {
-                    // Browser panel overlay: nổi lên trên terminal area, không co
-                    // terminal. Phần terminal không bị overlay che vẫn nhận input
-                    // bình thường (SwiftUI hit-test ưu tiên overlay).
-                    if activeSidebar == .browser {
-                        let total = geometry.size.width
-                        let effective = clampedBrowserWidth(total: total)
-
-                        HStack(spacing: 0) {
-                            BrowserResizeHandle(
-                                totalWidth: total,
-                                defaultWidth: defaultBrowserWidth(total: total),
-                                browserWidth: $browserWidth,
-                                onDragEnd: { width in
-                                    browserWidthStored = Double(width)
-                                }
-                            )
-
-                            BrowserPanelView(
-                                totalWidth: total,
-                                currentWidth: effective,
-                                onSetWidth: { target in
-                                    browserWidth = target
-                                    browserWidthStored = Double(target)
-                                },
-                                pwdProvider: { surfacePwd }
-                            )
-                            .frame(width: effective)
-                            .shadow(color: .black.opacity(0.35), radius: 10, x: -4, y: 0)
-                        }
-                        .transition(.move(edge: .trailing))
-                    }
-                }
 
                 // Command history right sidebar
                 if activeSidebar == .commandHistory {
@@ -307,7 +277,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     surfaceView.paste(nil)
                 },
                 onToggleBrowser: {
-                    activeSidebar = (activeSidebar == .browser) ? nil : .browser
+                    toggleBrowserAnchor()
                 }
             )
             } // VStack
@@ -335,9 +305,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 .keyboardShortcut("e", modifiers: .command)
                 .hidden()
 
-                // Cmd+B toggles browser panel directly (not part of Cmd+E cycle)
+                // Cmd+B anchors browser vào focused split leaf (toggle).
                 Button("") {
-                    activeSidebar = (activeSidebar == .browser) ? nil : .browser
+                    toggleBrowserAnchor()
                 }
                 .keyboardShortcut("b", modifiers: .command)
                 .hidden()
@@ -350,8 +320,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 .keyboardShortcut("l", modifiers: .command)
                 .hidden()
 
-                // Esc đóng panel — nhưng bỏ qua browser (browser chỉ đóng bằng Cmd+B).
-                if activeSidebar != nil && activeSidebar != .browser {
+                // Esc đóng sidebar đang mở. Browser không phải sidebar nên không
+                // bị ảnh hưởng — browser chỉ đóng qua Cmd+B.
+                if activeSidebar != nil {
                     EscapeKeyHandler {
                         activeSidebar = nil
                     }
@@ -473,73 +444,3 @@ private struct EscapeKeyHandler: NSViewRepresentable {
     }
 }
 
-// MARK: - Browser Resize Handle
-
-/// Drag handle giữa terminal và browser panel. Hit-area 8px (dễ hover/drag),
-/// đường nhìn 2px màu burnt-brown ở giữa; khi hover hiện icon mũi tên 2 chiều
-/// để báo hiệu có thể kéo. Đổi cursor thành resizeLeftRight khi hover.
-/// `onDragEnd` được gọi 1 lần khi drag kết thúc → caller dùng để persist size.
-private struct BrowserResizeHandle: View {
-    let totalWidth: CGFloat
-    let defaultWidth: CGFloat
-    @Binding var browserWidth: CGFloat?
-    let onDragEnd: (CGFloat) -> Void
-
-    @State private var dragStartWidth: CGFloat? = nil
-    @State private var isHovering: Bool = false
-
-    private static let handleWidth: CGFloat = 8
-    private static let lineWidth: CGFloat = 2
-
-    /// #5f3300cf — burnt-brown semi-transparent.
-    private static let borderColor = Color(
-        red: 0x5f / 255.0,
-        green: 0x33 / 255.0,
-        blue: 0x00 / 255.0,
-        opacity: 0xcf / 255.0
-    )
-
-    var body: some View {
-        ZStack {
-            Color.clear
-            Rectangle()
-                .fill(Self.borderColor)
-                .frame(width: Self.lineWidth)
-
-            if isHovering {
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Color.white.opacity(0.9))
-                    .frame(width: 20, height: 20)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(width: Self.handleWidth)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovering = hovering
-            if hovering {
-                NSCursor.resizeLeftRight.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    let start = dragStartWidth ?? (browserWidth ?? defaultWidth)
-                    if dragStartWidth == nil { dragStartWidth = start }
-                    let proposed = start - value.translation.width
-                    let minW = totalWidth * 0.01
-                    let maxW = max(minW, totalWidth * 0.99)
-                    browserWidth = min(max(proposed, minW), maxW)
-                }
-                .onEnded { _ in
-                    dragStartWidth = nil
-                    if let w = browserWidth {
-                        onDragEnd(w)
-                    }
-                }
-        )
-    }
-}

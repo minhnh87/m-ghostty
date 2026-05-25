@@ -28,13 +28,22 @@ enum TerminalSplitOperation {
 struct TerminalSplitTreeView: View {
     let tree: SplitTree<Ghostty.SurfaceView>
     let action: (TerminalSplitOperation) -> Void
+    /// Khi non-nil và trùng id của một leaf trong tree, leaf đó sẽ render
+    /// BrowserPanelView thay vì InspectableSurface. SurfaceView vẫn alive
+    /// trong tree (process tiếp tục chạy), chỉ tạm thời không hiển thị.
+    var browserAnchoredSurfaceID: Ghostty.SurfaceView.ID? = nil
+    /// pwdProvider được forward xuống BrowserPanelView để bookmark lấy được
+    /// pwd của surface đang focus tại thời điểm click.
+    var pwdProvider: (() -> String?)? = nil
 
     var body: some View {
         if let node = tree.zoomed ?? tree.root {
             TerminalSplitSubtreeView(
                 node: node,
                 isRoot: node == tree.root,
-                action: action)
+                action: action,
+                browserAnchoredSurfaceID: browserAnchoredSurfaceID,
+                pwdProvider: pwdProvider)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to
             // the tree structure of splits it could result in bad behaviors.
@@ -50,11 +59,18 @@ private struct TerminalSplitSubtreeView: View {
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
     let action: (TerminalSplitOperation) -> Void
+    var browserAnchoredSurfaceID: Ghostty.SurfaceView.ID? = nil
+    var pwdProvider: (() -> String?)? = nil
 
     var body: some View {
         switch node {
         case .leaf(let leafView):
-            TerminalSplitLeaf(surfaceView: leafView, isSplit: !isRoot, action: action)
+            TerminalSplitLeaf(
+                surfaceView: leafView,
+                isSplit: !isRoot,
+                action: action,
+                showBrowser: browserAnchoredSurfaceID == leafView.id,
+                pwdProvider: pwdProvider)
 
         case .split(let split):
             let splitViewDirection: SplitViewDirection = switch split.direction {
@@ -72,10 +88,18 @@ private struct TerminalSplitSubtreeView: View {
                 dividerColor: ghostty.config.splitDividerColor,
                 resizeIncrements: .init(width: 1, height: 1),
                 left: {
-                    TerminalSplitSubtreeView(node: split.left, action: action)
+                    TerminalSplitSubtreeView(
+                        node: split.left,
+                        action: action,
+                        browserAnchoredSurfaceID: browserAnchoredSurfaceID,
+                        pwdProvider: pwdProvider)
                 },
                 right: {
-                    TerminalSplitSubtreeView(node: split.right, action: action)
+                    TerminalSplitSubtreeView(
+                        node: split.right,
+                        action: action,
+                        browserAnchoredSurfaceID: browserAnchoredSurfaceID,
+                        pwdProvider: pwdProvider)
                 },
                 onEqualize: {
                     guard let surface = node.leftmostLeaf().surface else { return }
@@ -90,15 +114,23 @@ private struct TerminalSplitLeaf: View {
     let surfaceView: Ghostty.SurfaceView
     let isSplit: Bool
     let action: (TerminalSplitOperation) -> Void
+    var showBrowser: Bool = false
+    var pwdProvider: (() -> String?)? = nil
 
     @State private var dropState: DropState = .idle
     @State private var isSelfDragging: Bool = false
 
     var body: some View {
         GeometryReader { geometry in
-            Ghostty.InspectableSurface(
-                surfaceView: surfaceView,
-                isSplit: isSplit)
+            Group {
+                if showBrowser {
+                    BrowserPanelView(pwdProvider: pwdProvider ?? { nil })
+                } else {
+                    Ghostty.InspectableSurface(
+                        surfaceView: surfaceView,
+                        isSplit: isSplit)
+                }
+            }
             .background {
                 // If we're dragging ourself, we hide the entire drop zone. This makes
                 // it so that a released drop animates back to its source properly

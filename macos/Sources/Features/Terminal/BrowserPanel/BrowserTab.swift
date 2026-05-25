@@ -7,7 +7,7 @@ enum BrowserBookmarks {
     /// Bookmark "1": localhost:3001 với param `f={pwd}` (current folder),
     /// kèm `theme=dark` và `zoom=90` cố định.
     static func bookmark1(pwd: String?) -> String {
-        return "http://localhost:3001/?f=\(encodedPWD(pwd))&theme=dark&zoom=90"
+        return "http://localhost:3001/?path=last_talk.md&f=\(encodedPWD(pwd))&theme=dark&zoom=90"
     }
 
     /// Bookmark "2": localhost:4444 với param `path={pwd}`.
