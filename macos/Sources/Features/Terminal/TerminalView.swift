@@ -272,12 +272,19 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     guard let surface = lastFocusedSurface?.value?.surface else { return }
                     ghostty.split(surface: surface, direction: GHOSTTY_SPLIT_DIRECTION_RIGHT)
                 },
-                onPaste: {
-                    guard let surfaceView = lastFocusedSurface?.value else { return }
-                    surfaceView.paste(nil)
+                onCloseTab: {
+                    guard let controller = lastFocusedSurface?.value?.window?.windowController as? TerminalController else { return }
+                    controller.closeTab(nil)
                 },
                 onToggleBrowser: {
                     toggleBrowserAnchor()
+                },
+                onOpenInVSCode: {
+                    guard let pwd = lastFocusedSurface?.value?.pwd, !pwd.isEmpty else { return }
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                    process.arguments = ["-a", "Visual Studio Code", pwd]
+                    try? process.run()
                 }
             )
             } // VStack

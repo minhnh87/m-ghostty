@@ -9,8 +9,9 @@ struct BottomToolbarView: View {
     var onSendCtrlC: () -> Void
     var onSplitHorizontal: () -> Void
     var onSplitVertical: () -> Void
-    var onPaste: () -> Void
+    var onCloseTab: () -> Void
     var onToggleBrowser: () -> Void
+    var onOpenInVSCode: () -> Void
 
     @State private var hoveredSwatch: String? = nil
 
@@ -68,10 +69,10 @@ struct BottomToolbarView: View {
             )
 
             quickActionButton(
-                label: "Paste",
-                systemImage: "doc.on.clipboard",
-                help: "Paste clipboard vào terminal",
-                action: onPaste
+                label: "Close",
+                systemImage: "xmark",
+                help: "Đóng tab hiện tại",
+                action: onCloseTab
             )
 
             quickActionButton(
@@ -79,6 +80,13 @@ struct BottomToolbarView: View {
                 systemImage: "globe",
                 help: "Bật/tắt browser panel (Cmd+B)",
                 action: onToggleBrowser
+            )
+
+            quickActionButton(
+                label: "Code",
+                systemImage: "chevron.left.forwardslash.chevron.right",
+                help: "Mở thư mục hiện tại trong VS Code",
+                action: onOpenInVSCode
             )
 
             quickActionButton(label: "Ctrl+C", systemImage: nil, help: "Send Ctrl+C (interrupt running process)", action: onSendCtrlC)
@@ -150,8 +158,9 @@ struct BottomToolbarView: View {
         onSendCtrlC: {},
         onSplitHorizontal: {},
         onSplitVertical: {},
-        onPaste: {},
-        onToggleBrowser: {}
+        onCloseTab: {},
+        onToggleBrowser: {},
+        onOpenInVSCode: {}
     )
     .frame(width: 800)
     .background(Color.black)

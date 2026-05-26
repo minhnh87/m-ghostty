@@ -120,12 +120,16 @@ private struct WebViewHost: NSViewRepresentable {
     let webView: WKWebView
 
     func makeNSView(context: Context) -> NSView {
-        let container = NSView()
+        let container = BrowserContainerView()
+        container.webView = webView
         install(webView, in: container)
         return container
     }
 
     func updateNSView(_ container: NSView, context: Context) {
+        if let container = container as? BrowserContainerView {
+            container.webView = webView
+        }
         if container.subviews.first !== webView {
             container.subviews.forEach { $0.removeFromSuperview() }
             install(webView, in: container)
@@ -141,5 +145,36 @@ private struct WebViewHost: NSViewRepresentable {
             wv.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             wv.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
+    }
+}
+
+/// Container view cho WKWebView trong Browser Panel. Lý do tồn tại: Cmd+C / Cmd+V
+/// trong WKWebView không work khi đặt trong cây view của terminal — nhiều khả năng
+/// do menu Edit > Copy bị Ghostty inject keyEquivalent Cmd+C (xem
+/// `AppDelegate.syncMenuShortcut` cho action `copy_to_clipboard`) làm hỏng dispatch
+/// `copy:` xuống first responder là WKWebView. Ta override `performKeyEquivalent`
+/// ở ngay tầng container để bắt sớm và forward thẳng vào webView khi focus đang
+/// nằm bên trong webView.
+private final class BrowserContainerView: NSView {
+    weak var webView: WKWebView?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let webView,
+              let window,
+              let fr = window.firstResponder as? NSView,
+              fr.isDescendant(of: webView),
+              event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command
+        else { return super.performKeyEquivalent(with: event) }
+
+        switch event.charactersIgnoringModifiers {
+        case "c":
+            NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self)
+            return true
+        case "v":
+            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
     }
 }
