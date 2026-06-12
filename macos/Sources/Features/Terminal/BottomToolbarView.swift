@@ -10,7 +10,10 @@ struct BottomToolbarView: View {
     var onSplitHorizontal: () -> Void
     var onSplitVertical: () -> Void
     var onCloseTab: () -> Void
+    var onCopyCwd: () -> Void
+    var onOpenInFinder: () -> Void
     var onToggleBrowser: () -> Void
+    var onOpenGitGui: () -> Void
     var onOpenInVSCode: () -> Void
 
     @State private var hoveredSwatch: String? = nil
@@ -76,10 +79,31 @@ struct BottomToolbarView: View {
             )
 
             quickActionButton(
+                label: "Cwd",
+                systemImage: "doc.on.clipboard",
+                help: "Copy đường dẫn hiện tại vào clipboard",
+                action: onCopyCwd
+            )
+
+            quickActionButton(
+                label: "Finder",
+                systemImage: "folder",
+                help: "Mở thư mục hiện tại trong Finder",
+                action: onOpenInFinder
+            )
+
+            quickActionButton(
                 label: "Browser",
                 systemImage: "globe",
                 help: "Bật/tắt browser panel (Cmd+B)",
                 action: onToggleBrowser
+            )
+
+            quickActionButton(
+                label: "Git Gui",
+                systemImage: "arrow.triangle.branch",
+                help: "Chạy `git gui` tại thư mục hiện tại",
+                action: onOpenGitGui
             )
 
             quickActionButton(
@@ -159,7 +183,10 @@ struct BottomToolbarView: View {
         onSplitHorizontal: {},
         onSplitVertical: {},
         onCloseTab: {},
+        onCopyCwd: {},
+        onOpenInFinder: {},
         onToggleBrowser: {},
+        onOpenGitGui: {},
         onOpenInVSCode: {}
     )
     .frame(width: 800)

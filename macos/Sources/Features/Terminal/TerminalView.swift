@@ -276,8 +276,46 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     guard let controller = lastFocusedSurface?.value?.window?.windowController as? TerminalController else { return }
                     controller.closeTab(nil)
                 },
+                onCopyCwd: {
+                    guard let pwd = lastFocusedSurface?.value?.pwd, !pwd.isEmpty else { return }
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(pwd, forType: .string)
+                },
+                onOpenInFinder: {
+                    guard let pwd = lastFocusedSurface?.value?.pwd, !pwd.isEmpty else { return }
+                    NSWorkspace.shared.open(URL(fileURLWithPath: pwd, isDirectory: true))
+                },
                 onToggleBrowser: {
                     toggleBrowserAnchor()
+                },
+                onOpenGitGui: {
+                    let rawPwd = lastFocusedSurface?.value?.pwd
+                    NSLog("Git Gui: clicked, pwd=\(rawPwd ?? "<nil>")")
+                    guard let pwd = rawPwd, !pwd.isEmpty else {
+                        NSLog("Git Gui: pwd empty, aborting")
+                        return
+                    }
+                    let candidates = ["/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"]
+                    guard let gitPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+                        NSLog("Git Gui: git not found in \(candidates)")
+                        return
+                    }
+                    NSLog("Git Gui: launching \(gitPath) gui in \(pwd)")
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: gitPath)
+                    process.arguments = ["gui"]
+                    process.currentDirectoryURL = URL(fileURLWithPath: pwd)
+                    // GUI apps inherit a minimal PATH; git resolves the `gui`
+                    // subcommand (and its `wish` interpreter) via PATH.
+                    var env = ProcessInfo.processInfo.environment
+                    env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
+                    process.environment = env
+                    do {
+                        try process.run()
+                        NSLog("Git Gui: spawned pid=\(process.processIdentifier)")
+                    } catch {
+                        NSLog("Git Gui: failed to launch \(gitPath) gui in \(pwd): \(error)")
+                    }
                 },
                 onOpenInVSCode: {
                     guard let pwd = lastFocusedSurface?.value?.pwd, !pwd.isEmpty else { return }
