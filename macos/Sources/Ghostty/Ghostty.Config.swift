@@ -519,6 +519,21 @@ extension Ghostty {
             return String(format: "#%02x%02x%02x", color.r, color.g, color.b)
         }
 
+        /// Base URL cho 2 bookmark default của Browser panel. Đọc từ key
+        /// `browser-panel-base-url`, luôn đảm bảo có trailing slash. Fallback
+        /// về thư mục research/public khi key chưa được set trong config.
+        var browserPanelBaseURL: String {
+            let fallback = "file:///Users/minh/www/git/personal/research/public/"
+            guard let config = self.config else { return fallback }
+            var v: UnsafePointer<Int8>?
+            let key = "browser-panel-base-url"
+            guard ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8))) else { return fallback }
+            guard let ptr = v else { return fallback }
+            let base = String(cString: ptr)
+            guard !base.isEmpty else { return fallback }
+            return base.hasSuffix("/") ? base : base + "/"
+        }
+
         var backgroundOpacity: Double {
             guard let config = self.config else { return 1 }
             var v: Double = 1

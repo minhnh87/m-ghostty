@@ -1046,9 +1046,13 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 folderSidebarStore: self.folderSidebarStore,
                 onFolderClick: { [weak self] path in
                     // Send cd command to focused surface
-                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    guard let surfaceView = self?.focusedSurface,
+                          let surface = surfaceView.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
                     surface.writeText("cd \"\(escaped)\"\r")
+                    // The sidebar filter field may hold keyboard focus; the cd
+                    // target is the terminal, so focus should follow.
+                    Ghostty.moveFocus(to: surfaceView)
                 },
                 onFolderCmdClick: { [weak self] path in
                     guard let self, let window = self.window else { return }

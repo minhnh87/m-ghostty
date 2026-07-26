@@ -1,18 +1,28 @@
 import SwiftUI
 import WebKit
 
-/// 2 bookmarks cứng sẵn cho Browser panel. Cả 2 đều nhận `pwd` (working
-/// directory của terminal đang focus) và gắn vào query với key khác nhau.
+/// 2 bookmarks default cho Browser panel, build từ base URL lấy trong config
+/// (`browser-panel-base-url`, fallback về research/public). Bookmark 1 nhận
+/// `pwd` (working directory của terminal đang focus) gắn vào query `f=`.
 enum BrowserBookmarks {
-    /// Bookmark "1": localhost:3001 với param `f={pwd}` (current folder),
-    /// kèm `theme=dark` và `zoom=90` cố định.
-    static func bookmark1(pwd: String?) -> String {
-        return "http://localhost:3001/?path=last_talk.md&f=\(encodedPWD(pwd))&theme=dark&zoom=90"
+    /// Base URL đọc từ config mỗi lần gọi để user đổi config là ăn ngay
+    /// (sau reload config) mà không cần đổi code. Luôn có trailing slash.
+    private static var baseURL: String {
+        guard let appDelegate = NSApp.delegate as? AppDelegate else {
+            return "file:///Users/minh/www/git/personal/research/public/"
+        }
+        return appDelegate.ghostty.config.browserPanelBaseURL
     }
 
-    /// Bookmark "2": localhost:4444 với param `path={pwd}`.
-    static func bookmark2(pwd: String?) -> String {
-        return "http://127.0.0.1:4444/?path=\(encodedPWD(pwd))"
+    /// Bookmark "1": `{base}index.html` với param `f={pwd}` (current folder),
+    /// kèm `path=last_talk.md`, `theme=dark` và `zoom=90` cố định.
+    static func bookmark1(pwd: String?) -> String {
+        return "\(baseURL)index.html?path=last_talk.md&f=\(encodedPWD(pwd))&theme=dark&zoom=90"
+    }
+
+    /// Bookmark "2": `{base}claude.html`, không param.
+    static func bookmark2() -> String {
+        return "\(baseURL)claude.html"
     }
 
     /// Percent-encode qua `.urlQueryAllowed` (giữ '/' không encode vì hợp lệ
@@ -37,7 +47,13 @@ final class BrowserTab: ObservableObject, Identifiable {
 
     init(urlString: String) {
         self.urlString = urlString
-        let wv = WKWebView()
+        // Cho phép trang file:// fetch/XHR file khác (vd đọc file trong pwd
+        // của terminal). Hai key này là KVC private nhưng là cách chuẩn de-facto
+        // với WKWebView.
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
+        let wv = WKWebView(frame: .zero, configuration: config)
         self.webView = wv
 
         titleObservation = wv.observe(\.title, options: [.new]) { [weak self] wv, _ in
@@ -52,7 +68,7 @@ final class BrowserTab: ObservableObject, Identifiable {
         }
 
         if let url = URL(string: urlString) {
-            wv.load(URLRequest(url: url))
+            load(url)
         }
     }
 
@@ -62,7 +78,18 @@ final class BrowserTab: ObservableObject, Identifiable {
         if !s.contains("://") { s = "https://" + s }
         guard let url = URL(string: s) else { return }
         urlString = s
-        webView.load(URLRequest(url: url))
+        load(url)
+    }
+
+    /// WebContent process của WKWebView luôn sandboxed nên file URL phải load
+    /// qua `loadFileURL(_:allowingReadAccessTo:)` để cấp quyền đọc; grant tới
+    /// home directory để trang đọc được file ở pwd bất kỳ.
+    private func load(_ url: URL) {
+        if url.isFileURL {
+            webView.loadFileURL(url, allowingReadAccessTo: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
+        } else {
+            webView.load(URLRequest(url: url))
+        }
     }
 
     func reload() { webView.reload() }
@@ -89,7 +116,7 @@ final class BrowserTabsModel: ObservableObject {
 
     init(initialPWD: String?) {
         let tab1 = BrowserTab(urlString: BrowserBookmarks.bookmark1(pwd: initialPWD))
-        let tab2 = BrowserTab(urlString: BrowserBookmarks.bookmark2(pwd: initialPWD))
+        let tab2 = BrowserTab(urlString: BrowserBookmarks.bookmark2())
         tabs = [tab1, tab2]
         activeTabID = tab1.id
     }

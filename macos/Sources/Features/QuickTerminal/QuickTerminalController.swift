@@ -144,15 +144,21 @@ class QuickTerminalController: BaseTerminalController {
                 delegate: self,
                 folderSidebarStore: self.folderSidebarStore,
                 onFolderClick: { [weak self] path in
-                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    guard let surfaceView = self?.focusedSurface,
+                          let surface = surfaceView.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
                     surface.writeText("cd \"\(escaped)\"\r")
+                    // The sidebar filter field may hold keyboard focus; the cd
+                    // target is the terminal, so focus should follow.
+                    Ghostty.moveFocus(to: surfaceView)
                 },
                 onFolderCmdClick: { [weak self] path in
                     // Quick terminal doesn't support tabs, fallback to cd
-                    guard let surface = self?.focusedSurface?.surfaceModel else { return }
+                    guard let surfaceView = self?.focusedSurface,
+                          let surface = surfaceView.surfaceModel else { return }
                     let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
                     surface.writeText("cd \"\(escaped)\"\r")
+                    Ghostty.moveFocus(to: surfaceView)
                 },
                 commandHistoryStore: self.commandHistoryStore,
                 onCommandClick: { [weak self] command, execute in

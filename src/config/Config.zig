@@ -604,6 +604,12 @@ background: Color = .{ .r = 0x28, .g = 0x2C, .b = 0x34 },
 /// any theme- or config-supplied background without modifying them.
 @"custom-background": ?Color = null,
 
+/// Base URL for the browser panel's default bookmarks (macOS only).
+/// The two default tabs open `{base}index.html?f={pwd}` and
+/// `{base}claude.html`. Should end with a trailing slash. When unset,
+/// falls back to a hardcoded default in the macOS app.
+@"browser-panel-base-url": ?[:0]const u8 = null,
+
 /// Foreground color for the window.
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 foreground: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },

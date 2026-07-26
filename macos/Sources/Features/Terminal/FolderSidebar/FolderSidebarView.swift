@@ -9,6 +9,23 @@ struct FolderSidebarView: View {
     /// Called when a folder is Cmd+clicked (opens new tab).
     var onFolderCmdClick: (String) -> Void
 
+    @State private var filterText: String = ""
+    @FocusState private var isFilterFocused: Bool
+
+    /// The focus state is owned by TerminalView so the Esc handler there can
+    /// tell whether the filter field held focus when the sidebar closes.
+    init(
+        store: FolderSidebarStore,
+        onFolderClick: @escaping (String) -> Void,
+        onFolderCmdClick: @escaping (String) -> Void,
+        filterFocused: FocusState<Bool>
+    ) {
+        self.store = store
+        self.onFolderClick = onFolderClick
+        self.onFolderCmdClick = onFolderCmdClick
+        _isFilterFocused = filterFocused
+    }
+
     private var sortedFolders: [String] {
         store.folders.sorted { lhs, rhs in
             let lhsParent = (lhs as NSString).deletingLastPathComponent
@@ -23,18 +40,67 @@ struct FolderSidebarView: View {
         }
     }
 
+    private var filteredFolders: [String] {
+        let query = filterText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return sortedFolders }
+        return sortedFolders.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if store.folders.isEmpty {
                 emptyState
             } else {
-                folderList
+                filterBar
+                if filteredFolders.isEmpty {
+                    noMatchState
+                } else {
+                    folderList
+                }
             }
         }
         .background(Color(red: 0.11, green: 0.11, blue: 0.11))
+        .background(
+            FilterFocusKeyHandler(isEnabled: !store.folders.isEmpty) { isFilterFocused = true }
+        )
     }
 
     // MARK: - Subviews
+
+    @ViewBuilder
+    private var filterBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.55))
+
+            TextField("Filter folders (⌘P)", text: $filterText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundColor(Color(red: 0.85, green: 0.85, blue: 0.85))
+                .focused($isFilterFocused)
+
+            if !filterText.isEmpty {
+                Button {
+                    filterText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.55))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(red: 0.16, green: 0.16, blue: 0.16))
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
 
     @ViewBuilder
     private var emptyState: some View {
@@ -49,10 +115,22 @@ struct FolderSidebarView: View {
     }
 
     @ViewBuilder
+    private var noMatchState: some View {
+        VStack {
+            Spacer()
+            Text("No matching folders")
+                .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.55))
+                .font(.system(size: 12))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
     private var folderList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(sortedFolders, id: \.self) { path in
+                ForEach(filteredFolders, id: \.self) { path in
                     FolderSidebarRow(
                         path: path,
                         onFolderClick: onFolderClick,
@@ -118,6 +196,84 @@ private struct FolderSidebarRow: View {
         }
         let last2 = components.suffix(2)
         return last2.joined(separator: "/")
+    }
+}
+
+// MARK: - Filter Focus Key Handler (Cmd+P)
+
+private struct FilterFocusKeyHandler: NSViewRepresentable {
+    let isEnabled: Bool
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> KeyMonitorView {
+        KeyMonitorView(isEnabled: isEnabled, action: action)
+    }
+
+    func updateNSView(_ nsView: KeyMonitorView, context: Context) {
+        nsView.isEnabled = isEnabled
+        nsView.action = action
+    }
+
+    class KeyMonitorView: NSView {
+        var isEnabled: Bool
+        var action: () -> Void
+        private var monitor: Any?
+
+        init(isEnabled: Bool, action: @escaping () -> Void) {
+            self.isEnabled = isEnabled
+            self.action = action
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil && monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self, let window = self.window else { return event }
+                    // Only handle events for the window this sidebar lives in.
+                    guard event.window === window else { return event }
+                    // No filter bar on screen (no folders pinned): don't swallow the key.
+                    guard self.isEnabled else { return event }
+                    // Don't steal focus while another text field is being edited
+                    // (e.g. the command palette query or SSH profile inputs).
+                    if window.firstResponder is NSText { return event }
+                    let flags = event.modifierFlags
+                        .intersection(.deviceIndependentFlagsMask)
+                        .subtracting(.capsLock)
+                    guard flags == .command else { return event }
+                    // On non-Latin layouts charactersIgnoringModifiers returns the
+                    // layout character (e.g. "з"); characters carries the Latin one.
+                    if event.charactersIgnoringModifiers?.lowercased() == "p"
+                        || event.characters?.lowercased() == "p" {
+                        self.action()
+                        return nil // consume the event
+                    }
+                    return event // pass through
+                }
+            }
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            if superview == nil, let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            return nil
+        }
     }
 }
 

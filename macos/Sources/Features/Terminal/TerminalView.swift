@@ -71,6 +71,10 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     /// The most recently focused surface, equal to `focusedSurface` when it is non-nil.
     @State private var lastFocusedSurface: Weak<Ghostty.SurfaceView>?
 
+    // Owned here (not in FolderSidebarView) so the Esc handler below can
+    // restore terminal focus only when the folder filter field had it.
+    @FocusState private var folderFilterFocused: Bool
+
     /// Which sidebar panel is currently visible (nil = all closed).
     @State private var activeSidebar: SidebarPanel? = nil
 
@@ -249,7 +253,8 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     FolderSidebarView(
                         store: folderSidebarStore,
                         onFolderClick: onFolderClick,
-                        onFolderCmdClick: onFolderCmdClick
+                        onFolderCmdClick: onFolderCmdClick,
+                        filterFocused: _folderFilterFocused
                     )
                     .frame(width: geometry.size.width / 3)
                     .transition(.move(edge: .trailing))
@@ -329,6 +334,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
             .animation(.easeInOut(duration: 0.2), value: activeSidebar)
             .background {
                 Button("") {
+                    // Cycling away destroys the folder filter field; if it held
+                    // focus, restore the terminal (same as the Esc handler).
+                    let filterWasFocused = folderFilterFocused
                     // Cycle: nil → folders → commandHistory → sshProfiles → nil
                     // Browser is intentionally excluded (toggled via Cmd+B).
                     let panels = SidebarPanel.cycleCases
@@ -345,6 +353,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     // Reload SSH profiles when switching to that panel
                     if activeSidebar == .sshProfiles {
                         sshProfileStore.reload()
+                    }
+                    if filterWasFocused, let surface = lastFocusedSurface?.value {
+                        Ghostty.moveFocus(to: surface)
                     }
                 }
                 .keyboardShortcut("e", modifiers: .command)
@@ -369,7 +380,16 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                 // bị ảnh hưởng — browser chỉ đóng qua Cmd+B.
                 if activeSidebar != nil {
                     EscapeKeyHandler {
+                        // Read before closing: closing destroys the filter field.
+                        let filterWasFocused = folderFilterFocused
                         activeSidebar = nil
+                        // Closing the sidebar removes the filter field; if it
+                        // held focus, first responder is stranded on the window.
+                        // Restore the terminal. Guarded so focus is never yanked
+                        // from other inputs (command palette, browser URL, ...).
+                        if filterWasFocused, let surface = lastFocusedSurface?.value {
+                            Ghostty.moveFocus(to: surface)
+                        }
                     }
                 }
             }

@@ -5,9 +5,10 @@ import WebKit
 /// 100% width của leaf nó được anchor vào (nếu tab có split thì chỉ chiếm
 /// pane đó, không ảnh hưởng các pane khác). Mỗi tab giữ một WKWebView riêng
 /// nên scroll/state được preserve khi switch giữa các browser tab.
-/// Khi panel được bật lên, luôn khởi tạo 2 tab default:
-///   1) `http://localhost:3001/?f={pwd của terminal đang focus}`
-///   2) `http://127.0.0.1:4444/?path={pwd của terminal đang focus}`
+/// Khi panel được bật lên, luôn khởi tạo 2 tab default (base URL lấy từ
+/// config `browser-panel-base-url`):
+///   1) `{base}index.html?f={pwd của terminal đang focus}`
+///   2) `{base}claude.html`
 struct BrowserPanelView: View {
     @StateObject private var tabsModel: BrowserTabsModel
 
@@ -51,11 +52,11 @@ private struct BrowserActiveTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                bookmarkButton(label: "1", help: "Open localhost:3001 with current folder") {
+                bookmarkButton(label: "1", help: "Open index.html with current folder") {
                     tab.load(BrowserBookmarks.bookmark1(pwd: pwdProvider()))
                 }
-                bookmarkButton(label: "2", help: "Open localhost:4444 with current path") {
-                    tab.load(BrowserBookmarks.bookmark2(pwd: pwdProvider()))
+                bookmarkButton(label: "2", help: "Open claude.html") {
+                    tab.load(BrowserBookmarks.bookmark2())
                 }
 
                 TextField("URL", text: $urlString, onCommit: { tab.load(urlString) })
