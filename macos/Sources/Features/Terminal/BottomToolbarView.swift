@@ -15,6 +15,8 @@ struct BottomToolbarView: View {
     var onToggleBrowser: () -> Void
     var onOpenGitGui: () -> Void
     var onOpenInVSCode: () -> Void
+    var isClaudeKeepAliveActive: Bool
+    var onToggleClaudeKeepAlive: () -> Void
 
     @State private var hoveredSwatch: String? = nil
 
@@ -115,6 +117,14 @@ struct BottomToolbarView: View {
 
             quickActionButton(label: "Ctrl+C", systemImage: nil, help: "Send Ctrl+C (interrupt running process)", action: onSendCtrlC)
 
+            quickActionButton(
+                label: "Hello",
+                systemImage: nil,
+                help: "Giữ cache Claude Code của tab này ấm (ping headless theo TTL cache)",
+                isActive: isClaudeKeepAliveActive,
+                action: onToggleClaudeKeepAlive
+            )
+
             Spacer()
         }
         .padding(.horizontal, 10)
@@ -129,6 +139,7 @@ struct BottomToolbarView: View {
         label: String,
         systemImage: String?,
         help: String,
+        isActive: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -140,13 +151,13 @@ struct BottomToolbarView: View {
                 Text(label)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
             }
-            .foregroundColor(Color(red: 0.85, green: 0.85, blue: 0.85))
+            .foregroundColor(isActive ? .white : Color(red: 0.85, green: 0.85, blue: 0.85))
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(Color(red: 0.16, green: 0.16, blue: 0.16))
+            .background(isActive ? Color(red: 0.13, green: 0.40, blue: 0.25) : Color(red: 0.16, green: 0.16, blue: 0.16))
             .overlay(
                 RoundedRectangle(cornerRadius: 4)
-                    .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 1)
+                    .stroke(isActive ? Color(red: 0.30, green: 0.75, blue: 0.45) : Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 4))
         }
@@ -187,7 +198,9 @@ struct BottomToolbarView: View {
         onOpenInFinder: {},
         onToggleBrowser: {},
         onOpenGitGui: {},
-        onOpenInVSCode: {}
+        onOpenInVSCode: {},
+        isClaudeKeepAliveActive: false,
+        onToggleClaudeKeepAlive: {}
     )
     .frame(width: 800)
     .background(Color.black)

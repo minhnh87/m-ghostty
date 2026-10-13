@@ -84,6 +84,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
     /// hoặc khi anchored leaf bị remove khỏi tree.
     @State private var browserAnchoredSurfaceID: Ghostty.SurfaceView.ID? = nil
 
+    /// Keep-alive cache Claude Code cho tab này (nút "Hello" ở bottom toolbar).
+    @StateObject private var claudeKeepAlive = ClaudeCacheKeepAlive()
+
     private enum SidebarPanel: CaseIterable {
         case commandHistory
         case sshProfiles
@@ -328,6 +331,10 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
                     process.arguments = ["-a", "Visual Studio Code", pwd]
                     try? process.run()
+                },
+                isClaudeKeepAliveActive: claudeKeepAlive.isActive,
+                onToggleClaudeKeepAlive: {
+                    claudeKeepAlive.toggle(cwd: lastFocusedSurface?.value?.pwd)
                 }
             )
             } // VStack
@@ -354,7 +361,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     if activeSidebar == .sshProfiles {
                         sshProfileStore.reload()
                     }
-                    if filterWasFocused, let surface = lastFocusedSurface?.value {
+                    // Focus the folder filter on open. Deferred: the TextField
+                    // doesn't exist until this state change renders.
+                    if activeSidebar == .folders {
+                        DispatchQueue.main.async { folderFilterFocused = true }
+                    } else if filterWasFocused, let surface = lastFocusedSurface?.value {
                         Ghostty.moveFocus(to: surface)
                     }
                 }
